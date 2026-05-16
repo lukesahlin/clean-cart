@@ -214,6 +214,24 @@ def health_check():
     }
 
 
+@app.get("/test/stores")
+async def test_stores(lat: float = 47.6588, lng: float = -117.4260, radius: int = 8000):
+    """
+    Test Google Places store discovery.
+    Usage: /test/stores?lat=47.65&lng=-117.42
+    Shows which stores were found and whether GOOGLE_PLACES_API_KEY is set.
+    """
+    import os
+    key_set = bool(os.getenv("GOOGLE_PLACES_API_KEY", "").strip())
+    loop = asyncio.get_event_loop()
+    stores, debug = await loop.run_in_executor(None, find_nearby_stores, lat, lng, radius)
+    return {
+        "google_places_key_set": key_set,
+        "stores_found": [s.to_dict() for s in stores],
+        "debug": debug,
+    }
+
+
 @app.get("/test/kroger")
 async def test_kroger(zip_code: str = "", query: str = "tortilla chips"):
     """
@@ -325,11 +343,11 @@ async def shop(request: ShopRequest):
 
     loop = asyncio.get_event_loop()
 
-    # step 1 — find nearby stores
+    # step 1 — find nearby stores via Google Places
     nearby_result = await loop.run_in_executor(
         None, find_nearby_stores, request.lat, request.lng, request.radius_meters
     )
-    stores, _ = nearby_result if isinstance(nearby_result, tuple) else (nearby_result, {})
+    stores, debug = nearby_result if isinstance(nearby_result, tuple) else (nearby_result, {})
 
     # step 2 — group stores by chain so we search each chain once
     chains_seen = {}
@@ -337,6 +355,37 @@ async def shop(request: ShopRequest):
         cid = store.chain_id
         if cid not in chains_seen:
             chains_seen[cid] = store
+
+    # fallback: if Google Places isn't configured or returned nothing,
+    # still search Kroger + Walmart using just the lat/lng coordinates
+    if not chains_seen:
+        from nearby_stores import NearbyStore
+        # derive a zip from coordinates if we don't have one
+        zip_code = request.zip_code
+        if not zip_code:
+            try:
+                import httpx as _httpx
+                geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
+                    "https://nominatim.openstreetmap.org/reverse",
+                    params={"lat": request.lat, "lon": request.lng, "format": "json"},
+                    headers={"User-Agent": "CleanCart/1.0"},
+                    timeout=6,
+                ))
+                zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
+            except Exception:
+                zip_code = ""
+
+        # create placeholder store objects so the search chain logic runs
+        chains_seen["kroger"] = NearbyStore(
+            place_id="kroger_fallback", name="Fred Meyer / QFC",
+            chain_id="kroger", address="", lat=request.lat, lng=request.lng,
+        )
+        chains_seen["walmart"] = NearbyStore(
+            place_id="walmart_fallback", name="Walmart",
+            chain_id="walmart", address="", lat=request.lat, lng=request.lng,
+        )
+        # patch zip onto the request for downstream adapters
+        request = request.model_copy(update={"zip_code": zip_code})
 
     def _filter_and_score(products: list[dict], chain_id: str, store) -> list[dict]:
         """Run filter + scoring on a list of raw product dicts from a store API."""
