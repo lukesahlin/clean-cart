@@ -217,16 +217,18 @@ def health_check():
 @app.get("/test/kroger")
 async def test_kroger(zip_code: str = "99201", query: str = "tortilla chips"):
     """
-    Quick credential test for the Kroger API.
-    Visit /test/kroger in your browser to verify KROGER_CLIENT_ID and
-    KROGER_CLIENT_SECRET are working. Returns token status, nearest store,
-    and up to 3 product results so you can confirm the full flow works.
+    Kroger API credential + store discovery test.
+    Searches for ALL Kroger-family stores near zip_code (no chain filter)
+    so we can see exactly which banners exist in the area, then tries a
+    product search against the first one found.
     """
     import os
+    import httpx as _httpx
+
     result = {
         "credentials_set": bool(os.getenv("KROGER_CLIENT_ID")) and bool(os.getenv("KROGER_CLIENT_SECRET")),
         "token": None,
-        "location": None,
+        "stores_found": [],
         "products": [],
         "error": None,
     }
@@ -236,34 +238,62 @@ async def test_kroger(zip_code: str = "99201", query: str = "tortilla chips"):
         return result
 
     try:
-        from adapters.kroger import _get_token, _find_kroger_location_id, _search_products
+        from adapters.kroger import _get_token, _search_products, LOCATIONS_URL
         loop = asyncio.get_event_loop()
 
         # step 1 — get token
         token = await loop.run_in_executor(None, _get_token)
         result["token"] = "✓ obtained" if token else "✗ failed"
+        if not token:
+            return result
 
-        # step 2 — find nearest Fred Meyer
-        location_id = await loop.run_in_executor(
-            None, _find_kroger_location_id, zip_code, "Fred Meyer"
-        )
-        result["location"] = location_id if location_id else "✗ no Fred Meyer found near " + zip_code
+        # step 2 — find ALL Kroger-family stores near zip (no chain filter)
+        def _find_all_stores():
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+            params  = {
+                "filter.zipCode.near": zip_code,
+                "filter.radiusInMiles": 25,
+                "filter.limit": 10,
+            }
+            resp = _httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=10)
+            if resp.status_code != 200:
+                return [], f"Locations API returned {resp.status_code}: {resp.text[:200]}"
+            locations = resp.json().get("data", [])
+            stores = [
+                {
+                    "locationId": loc.get("locationId"),
+                    "name": loc.get("name"),
+                    "chain": loc.get("chain"),
+                    "address": (loc.get("address") or {}).get("addressLine1", ""),
+                    "city": (loc.get("address") or {}).get("city", ""),
+                }
+                for loc in locations
+            ]
+            return stores, None
 
-        # step 3 — search products
-        if location_id:
-            products = await loop.run_in_executor(
-                None, _search_products, query, location_id
-            )
+        stores, err = await loop.run_in_executor(None, _find_all_stores)
+        if err:
+            result["error"] = err
+            return result
+
+        result["stores_found"] = stores
+
+        # step 3 — search products at first store found
+        if stores:
+            first_id = stores[0]["locationId"]
+            products = await loop.run_in_executor(None, _search_products, query, first_id)
             result["products"] = [
                 {
-                    "name": p.get("description", ""),
+                    "name":  p.get("description", ""),
                     "brand": p.get("brand", ""),
                     "price": (p.get("items") or [{}])[0].get("price", {}).get("regular"),
                 }
                 for p in products[:3]
             ]
             if not products:
-                result["error"] = f"Token and location OK, but no products found for '{query}'"
+                result["error"] = f"Store found but no products for '{query}' — check API scope includes product.compact"
+        else:
+            result["error"] = f"No Kroger-family stores found within 25 miles of {zip_code}"
 
     except Exception as e:
         result["error"] = str(e)
