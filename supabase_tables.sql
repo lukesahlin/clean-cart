@@ -16,6 +16,7 @@ create policy "Users can manage their own lists"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+
 -- Scan history
 create table if not exists scan_history (
   id uuid default gen_random_uuid() primary key,

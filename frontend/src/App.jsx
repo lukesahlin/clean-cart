@@ -1,7 +1,7 @@
 // App.jsx -- Clean Cart
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import GroceryList from './components/GroceryList.jsx'
-import Results from './components/Results.jsx'
+import ShopResults from './components/ShopResults.jsx'
 import ProductDetail from './components/ProductDetail.jsx'
 import Settings from './components/Settings.jsx'
 import BarcodeScanner from './components/BarcodeScanner.jsx'
@@ -9,7 +9,9 @@ import AuthScreen from './components/AuthScreen.jsx'
 import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { fetchRecommendations } from './api.js'
+import { shopAtStores, requestGeolocation, reverseGeocode } from './api.js'
+
+const DEFAULT_ZIP = '99201'   // Spokane fallback when GPS is unavailable
 
 export default function App() {
   const { user, loading, signOut } = useAuth()
@@ -19,23 +21,66 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [results, setResults] = useState(null)
+  const [shopResults, setShopResults] = useState(null)   // [{ item, data, loading, error }]
   const [currentItems, setCurrentItems] = useState([])
+
+  // cache GPS so we only ask once per session
+  const locationRef = useRef(null)
+  const zipRef = useRef(DEFAULT_ZIP)
 
   const handleSearch = useCallback(async (items) => {
     if (!items.length) return
     setIsLoading(true)
     setError(null)
     setCurrentItems(items)
-    try {
-      const data = await fetchRecommendations({ items, avoid: avoidList })
-      setResults(data)
-      setScreen('results')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setIsLoading(false)
+
+    // build initial loading state so the screen shows immediately
+    const initial = items.map(item => ({ item, data: null, loading: true, error: null }))
+    setShopResults(initial)
+    setScreen('results')
+
+    // get GPS location (or reuse cached)
+    let lat, lng, zip
+    if (locationRef.current) {
+      ;({ lat, lng } = locationRef.current)
+      zip = zipRef.current
+    } else {
+      try {
+        const loc = await requestGeolocation()
+        lat = loc.lat
+        lng = loc.lng
+        locationRef.current = loc
+        // reverse geocode to get zip for store API calls
+        const geo = await reverseGeocode(lat, lng).catch(() => ({}))
+        zip = geo.zip_code || DEFAULT_ZIP
+        zipRef.current = zip
+      } catch {
+        // GPS denied — use defaults (Spokane)
+        lat = 47.6588
+        lng = -117.4260
+        zip = DEFAULT_ZIP
+        locationRef.current = { lat, lng }
+      }
     }
+
+    // fire one /shop call per item concurrently, update state as each resolves
+    await Promise.all(items.map(async (item, idx) => {
+      try {
+        const data = await shopAtStores({
+          query: item,
+          lat,
+          lng,
+          zip_code: zip,
+          avoid: avoidList,
+          top_n: 5,
+        })
+        setShopResults(prev => prev.map((r, i) => i === idx ? { ...r, data, loading: false } : r))
+      } catch (err) {
+        setShopResults(prev => prev.map((r, i) => i === idx ? { ...r, loading: false, error: err.message } : r))
+      }
+    }))
+
+    setIsLoading(false)
   }, [avoidList])
 
   const handleScannedProduct = useCallback((product) => {
@@ -66,8 +111,8 @@ export default function App() {
     if (tab === 'instacart') return <InstacartSearch avoidList={avoidList} />
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
-      if (screen === 'results' && results) {
-        return <Results results={results} items={currentItems} loading={isLoading} onBack={() => setScreen('list')} onProductClick={setSelectedProduct} />
+      if (screen === 'results' && shopResults) {
+        return <ShopResults shopResults={shopResults} onBack={() => setScreen('list')} />
       }
       return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} />
     }
@@ -81,8 +126,8 @@ export default function App() {
             <img src="/logo.jpg" alt="Clean Cart" style={s.logoImg} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {tab === 'list' && screen === 'results' && (
-              <button style={s.backPill} onClick={() => setScreen('list')}>← New list</button>
+            {tab === 'list' && screen === 'results' && shopResults && (
+              <button style={s.backPill} onClick={() => { setScreen('list'); setShopResults(null) }}>← New list</button>
             )}
             <span style={s.userEmail}>{user.email?.split('@')[0]}</span>
           </div>
