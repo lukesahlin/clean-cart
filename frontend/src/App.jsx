@@ -9,7 +9,7 @@ import AuthScreen from './components/AuthScreen.jsx'
 import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { shopAtStores, requestGeolocation, reverseGeocode } from './api.js'
+import { shopAtStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
 
 const DEFAULT_ZIP = '99201'   // Spokane fallback when GPS is unavailable
 
@@ -24,11 +24,28 @@ export default function App() {
   const [shopResults, setShopResults] = useState(null)   // [{ item, data, loading, error }]
   const [currentItems, setCurrentItems] = useState([])
 
-  // cache GPS so we only ask once per session
-  const locationRef = useRef(null)
-  const zipRef = useRef(DEFAULT_ZIP)
+  // location state — visible to the user, not just a ref
+  const [location, setLocation] = useState(null)   // { lat, lng, zip, label }
 
-  const handleSearch = useCallback(async (items) => {
+  const resolveLocation = useCallback(async () => {
+    if (location) return location
+    try {
+      const loc = await requestGeolocation()
+      const geo = await reverseGeocode(loc.lat, loc.lng).catch(() => ({}))
+      const zip = geo.zip_code || DEFAULT_ZIP
+      const label = geo.city ? `${geo.city}, ${geo.state || ''}`.trim().replace(/,$/, '') : zip
+      const resolved = { lat: loc.lat, lng: loc.lng, zip, label }
+      setLocation(resolved)
+      return resolved
+    } catch {
+      // GPS denied or unavailable — use Spokane default
+      const fallback = { lat: 47.6588, lng: -117.4260, zip: DEFAULT_ZIP, label: 'Spokane, WA (default)' }
+      setLocation(fallback)
+      return fallback
+    }
+  }, [location])
+
+  const handleSearch = useCallback(async (items, overrideLocation = null) => {
     if (!items.length) return
     setIsLoading(true)
     setError(null)
@@ -39,38 +56,16 @@ export default function App() {
     setShopResults(initial)
     setScreen('results')
 
-    // get GPS location (or reuse cached)
-    let lat, lng, zip
-    if (locationRef.current) {
-      ;({ lat, lng } = locationRef.current)
-      zip = zipRef.current
-    } else {
-      try {
-        const loc = await requestGeolocation()
-        lat = loc.lat
-        lng = loc.lng
-        locationRef.current = loc
-        // reverse geocode to get zip for store API calls
-        const geo = await reverseGeocode(lat, lng).catch(() => ({}))
-        zip = geo.zip_code || DEFAULT_ZIP
-        zipRef.current = zip
-      } catch {
-        // GPS denied — use defaults (Spokane)
-        lat = 47.6588
-        lng = -117.4260
-        zip = DEFAULT_ZIP
-        locationRef.current = { lat, lng }
-      }
-    }
+    const loc = overrideLocation || await resolveLocation()
 
     // fire one /shop call per item concurrently, update state as each resolves
     await Promise.all(items.map(async (item, idx) => {
       try {
         const data = await shopAtStores({
           query: item,
-          lat,
-          lng,
-          zip_code: zip,
+          lat: loc.lat,
+          lng: loc.lng,
+          zip_code: loc.zip,
           avoid: avoidList,
           top_n: 5,
         })
@@ -81,7 +76,15 @@ export default function App() {
     }))
 
     setIsLoading(false)
-  }, [avoidList])
+  }, [avoidList, resolveLocation])
+
+  // let the user change their location and re-run the last search
+  const handleLocationChange = useCallback(async (newLoc) => {
+    setLocation(newLoc)
+    if (currentItems.length) {
+      handleSearch(currentItems, newLoc)
+    }
+  }, [currentItems, handleSearch])
 
   const handleScannedProduct = useCallback((product) => {
     setTab('list')
@@ -112,9 +115,9 @@ export default function App() {
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && shopResults) {
-        return <ShopResults shopResults={shopResults} onBack={() => setScreen('list')} />
+        return <ShopResults shopResults={shopResults} location={location} onLocationChange={handleLocationChange} onBack={() => setScreen('list')} />
       }
-      return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} />
+      return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} location={location} onLocationChange={handleLocationChange} />
     }
   }
 

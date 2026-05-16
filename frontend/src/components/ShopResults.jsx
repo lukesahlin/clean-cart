@@ -3,6 +3,7 @@
 // shopResults shape: [{ item: string, data: { query, stores_searched, stores_with_results, results: [...] } }]
 
 import { useState } from 'react'
+import LocationBar from './LocationBar.jsx'
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -105,13 +106,14 @@ function buildRoute(shopResults) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ShopResults({ shopResults, onBack }) {
+export default function ShopResults({ shopResults, location, onLocationChange, onBack }) {
   const [expandedItem, setExpandedItem] = useState(null)
   const [expandedProduct, setExpandedProduct] = useState(null)
 
   const summary = buildSummary(shopResults)
   const route = buildRoute(shopResults)
   const bestStore = route[0]
+  const isLoading = shopResults.some(r => r.loading)
 
   return (
     <div style={s.page}>
@@ -123,9 +125,17 @@ export default function ShopResults({ shopResults, onBack }) {
           <span style={s.summaryOf}>/{summary.totalItems}</span>
           <span style={s.summaryLabel}> items with clean picks</span>
         </div>
-        {summary.storeCount > 0 && (
-          <span style={s.storePill}>🏪 {summary.storeCount} store{summary.storeCount !== 1 ? 's' : ''}</span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {summary.storeCount > 0 && (
+            <span style={s.storePill}>🏪 {summary.storeCount} store{summary.storeCount !== 1 ? 's' : ''}</span>
+          )}
+          {isLoading && <span style={s.loadingPill}>🔍 Searching…</span>}
+        </div>
+      </div>
+
+      {/* Location bar — compact, always visible so user can change it */}
+      <div style={s.locationRow}>
+        <LocationBar location={location} onLocationChange={onLocationChange} compact />
       </div>
 
       {/* Best store card — shown when we have results */}
@@ -468,7 +478,9 @@ const s = {
   summaryBig: { fontSize: 26, fontWeight: 800, color: '#1B5E20' },
   summaryOf: { fontSize: 18, fontWeight: 600, color: '#AAA' },
   summaryLabel: { fontSize: 14, color: '#666' },
-  storePill: { fontSize: 12, fontWeight: 600, color: '#555', background: '#F0EDE8', borderRadius: 20, padding: '4px 10px' },
+  storePill:   { fontSize: 12, fontWeight: 600, color: '#555', background: '#F0EDE8', borderRadius: 20, padding: '4px 10px' },
+  loadingPill: { fontSize: 12, fontWeight: 600, color: '#888', background: '#F5F5F5', borderRadius: 20, padding: '4px 10px' },
+  locationRow: { background: '#fff', borderBottom: '1px solid #EBEBEB', padding: '6px 16px 8px' },
 
   // Route card
   routeCard: { margin: '12px 16px 0', background: '#1B5E20', borderRadius: 18, padding: '16px', boxShadow: '0 4px 20px rgba(27,94,32,0.3)' },

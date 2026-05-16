@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { fetchAutocomplete } from '../api.js'
 import { fetchSavedLists, saveList, deleteList } from '../lib/db.js'
+import LocationBar from './LocationBar.jsx'
 
 const EXAMPLES = ['tortilla chips', 'mayonnaise', 'granola bars', 'ranch dressing', 'peanut butter', 'greek yogurt', 'salad dressing', 'crackers']
 
-export default function GroceryList({ onSearch, loading, error }) {
+export default function GroceryList({ onSearch, loading, error, location, onLocationChange }) {
   const [items, setItems] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -92,8 +93,11 @@ export default function GroceryList({ onSearch, loading, error }) {
       {/* Hero */}
       <div style={s.hero}>
         <h1 style={s.heroTitle}>What are you shopping for?</h1>
-        <p style={s.heroSub}>Add items and we'll find the cleanest options.</p>
+        <p style={s.heroSub}>Add items and we'll find the cleanest options nearby.</p>
       </div>
+
+      {/* Location picker */}
+      <LocationBar location={location} onLocationChange={onLocationChange} />
 
       {/* Search input */}
       <div style={s.inputWrap}>
