@@ -30,10 +30,14 @@ PRODUCTS_URL     = f"{KROGER_BASE_URL}/products"
 
 # Kroger banner names to search for by chain_id. QFC and Fred Meyer are both
 # returned by the Locations API using their banner name.
+# Chain codes returned by Kroger's Locations API (filter.chain values)
 CHAIN_BANNER_MAP = {
-    "fred_meyer": "Fred Meyer",
+    "fred_meyer": "FRED",
     "qfc":        "QFC",
-    "kroger":     "Kroger",
+    "kroger":     "KROGER",
+    "king_soopers": "KINGSOOPERS",
+    "ralphs":     "RALPHS",
+    "smiths":     "SMITHS",
 }
 
 # Token cache — shared across all calls in this process
@@ -278,10 +282,10 @@ def check_availability(product_query: str, store_branch_id: str, store_name: str
     name_lower = store_name.lower()
     if "qfc" in name_lower or "quality food" in name_lower:
         banner = "QFC"
-    elif "fred meyer" in name_lower:
-        banner = "Fred Meyer"
+    elif "fred meyer" in name_lower or "fred" in name_lower:
+        banner = "FRED"
     else:
-        banner = "Kroger"   # fallback
+        banner = ""   # let the fallback find whatever's closest
 
     try:
         # step 1: find the Kroger locationId near the user's zip

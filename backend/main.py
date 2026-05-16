@@ -385,8 +385,8 @@ async def shop(request: ShopRequest):
             name_lower = store.name.lower()
             if "qfc" in name_lower or "quality food" in name_lower:
                 banner = "QFC"
-            elif "fred meyer" in name_lower:
-                banner = "Fred Meyer"
+            elif "fred meyer" in name_lower or "fred" in name_lower:
+                banner = "FRED"
             else:
                 banner = ""   # let the adapter find whatever's closest
             products = await loop.run_in_executor(

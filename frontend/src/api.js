@@ -69,7 +69,7 @@ export function requestGeolocation() {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => reject(new Error(err.message)),
-      { enableHighAccuracy: false, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     )
   })
 }
