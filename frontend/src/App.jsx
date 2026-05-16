@@ -1,0 +1,137 @@
+// App.jsx — Clean Cart redesign
+// Bottom tab navigation: List | Scan | Settings
+
+import { useState, useCallback } from 'react'
+import GroceryList from './components/GroceryList.jsx'
+import Results from './components/Results.jsx'
+import ProductDetail from './components/ProductDetail.jsx'
+import Settings from './components/Settings.jsx'
+import BarcodeScanner from './components/BarcodeScanner.jsx'
+import { useLocalStorage } from './hooks/useLocalStorage.js'
+import { fetchRecommendations } from './api.js'
+
+export default function App() {
+  const [avoidList, setAvoidList] = useLocalStorage('cleanCart_avoidList', ['seed_oils', 'harmful_additives'])
+  const [savedLists, setSavedLists] = useLocalStorage('cleanCart_savedLists', [])
+  const [tab, setTab] = useState('list')           // bottom nav tab
+  const [screen, setScreen] = useState('list')     // 'list' | 'results'
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [results, setResults] = useState(null)
+  const [currentItems, setCurrentItems] = useState([])
+
+  const handleSearch = useCallback(async (items) => {
+    if (!items.length) return
+    setLoading(true)
+    setError(null)
+    setCurrentItems(items)
+    try {
+      const data = await fetchRecommendations({ items, avoid: avoidList })
+      setResults(data)
+      setScreen('results')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [avoidList])
+
+  const handleScannedProduct = useCallback((product) => {
+    setTab('list')
+    handleSearch([product.product_name || product.barcode])
+  }, [handleSearch])
+
+  const handleTabChange = (t) => {
+    setTab(t)
+    if (t === 'list' && screen !== 'results') setScreen('list')
+  }
+
+  const mainContent = () => {
+    if (tab === 'scan') return <BarcodeScanner avoidList={avoidList} onClose={() => setTab('list')} onProductFound={handleScannedProduct} embedded />
+    if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} />
+    if (tab === 'list') {
+      if (screen === 'results' && results) {
+        return <Results results={results} items={currentItems} loading={loading} onBack={() => setScreen('list')} onProductClick={setSelectedProduct} />
+      }
+      return <GroceryList savedLists={savedLists} setSavedLists={setSavedLists} onSearch={handleSearch} loading={loading} error={error} />
+    }
+  }
+
+  return (
+    <div style={s.app}>
+      {/* Header — only on list/results tabs */}
+      {tab !== 'scan' && (
+        <header style={s.header}>
+          <div style={s.logo}>
+            <img src="/logo.jpg" alt="Clean Cart" style={s.logoImg} />
+          </div>
+          {tab === 'list' && screen === 'results' && (
+            <button style={s.backPill} onClick={() => setScreen('list')}>← New list</button>
+          )}
+        </header>
+      )}
+
+      {/* Main */}
+      <main style={{ ...s.main, paddingBottom: tab === 'scan' ? 0 : 80 }}>
+        {mainContent()}
+      </main>
+
+      {/* Bottom tab bar */}
+      <nav style={s.tabBar}>
+        <TabBtn icon="🛒" label="List" active={tab === 'list'} onClick={() => handleTabChange('list')} />
+        <TabBtn icon={<BarcodeIcon />} label="Scan" active={tab === 'scan'} onClick={() => handleTabChange('scan')} accent />
+        <TabBtn icon="⚙️" label="Settings" active={tab === 'settings'} onClick={() => handleTabChange('settings')} />
+      </nav>
+
+      {selectedProduct && (
+        <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} avoidList={avoidList} />
+      )}
+    </div>
+  )
+}
+
+function TabBtn({ icon, label, active, onClick, accent }) {
+  return (
+    <button style={{ ...s.tabBtn, ...(active ? s.tabBtnActive : {}) }} onClick={onClick}>
+      {accent ? (
+        <div style={{ ...s.scanFab, ...(active ? s.scanFabActive : {}) }}>
+          {icon}
+        </div>
+      ) : (
+        <span style={s.tabIcon}>{icon}</span>
+      )}
+      <span style={{ ...s.tabLabel, ...(active && !accent ? s.tabLabelActive : {}) }}>{label}</span>
+    </button>
+  )
+}
+
+function BarcodeIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+      <line x1="7" y1="8" x2="7" y2="16"/><line x1="11" y1="8" x2="11" y2="16"/>
+      <line x1="15" y1="8" x2="15" y2="16"/>
+    </svg>
+  )
+}
+
+const s = {
+  app: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', background: '#F5F4F1', position: 'relative' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', background: '#fff', borderBottom: '1px solid #EBEBEB', position: 'sticky', top: 0, zIndex: 20 },
+  logo: { display: 'flex', alignItems: 'center', gap: 8 },
+  logoIcon: { fontSize: 22 },
+  logoImg: { height: 32, width: 'auto', objectFit: 'contain' },
+  logoText: { fontWeight: 800, fontSize: 19, color: '#1B5E20', letterSpacing: '-0.5px' },
+  backPill: { fontSize: 13, fontWeight: 600, color: '#1B5E20', background: '#E8F5E9', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer' },
+  main: { flex: 1, overflowY: 'auto' },
+  tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', background: '#fff', borderTop: '1px solid #EBEBEB', padding: '8px 0 max(8px, env(safe-area-inset-bottom))', zIndex: 30 },
+  tabBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 2px' },
+  tabBtnActive: {},
+  tabIcon: { fontSize: 22 },
+  tabLabel: { fontSize: 11, fontWeight: 500, color: '#AAA', letterSpacing: '0.2px' },
+  tabLabelActive: { color: '#1B5E20', fontWeight: 700 },
+  scanFab: { width: 52, height: 52, background: '#1B5E20', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: 2, boxShadow: '0 4px 16px rgba(27,94,32,0.35)' },
+  scanFabActive: { background: '#145214' },
+}

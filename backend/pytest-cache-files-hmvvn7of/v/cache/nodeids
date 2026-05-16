@@ -1,0 +1,13 @@
+[
+  "test_filter_engine.py::test_artificial_sweetener_flagged_when_requested",
+  "test_filter_engine.py::test_artificial_sweetener_off_by_default",
+  "test_filter_engine.py::test_canola_oil_flagged",
+  "test_filter_engine.py::test_case_insensitive",
+  "test_filter_engine.py::test_clean_product_passes",
+  "test_filter_engine.py::test_hfcs_flagged_when_requested",
+  "test_filter_engine.py::test_multiple_flags",
+  "test_filter_engine.py::test_red_40_flagged",
+  "test_filter_engine.py::test_result_dict_shape",
+  "test_filter_engine.py::test_soybean_oil_flagged",
+  "test_filter_engine.py::test_vegetable_oil_flagged"
+]

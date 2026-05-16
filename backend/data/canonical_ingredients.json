@@ -1,0 +1,1106 @@
+{
+  "_comment": "Canonical ingredient definitions for Clean Cart. Each entry maps a canonical id to OFF tags, multilingual aliases, category, and risk level.",
+  "ingredients": [
+    {
+      "canonical": "canola_oil",
+      "off_tags": [
+        "en:canola-oil",
+        "en:rapeseed-oil",
+        "en:colza-oil"
+      ],
+      "aliases": [
+        "canola oil",
+        "rapeseed oil",
+        "canola/rapeseed oil",
+        "huile de colza",
+        "huile de canola",
+        "aceite de colza",
+        "rapsöl",
+        "koolzaadolie",
+        "olej rzepakowy",
+        "olio di colza"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "soybean_oil",
+      "off_tags": [
+        "en:soybean-oil",
+        "en:soya-oil",
+        "en:soy-oil"
+      ],
+      "aliases": [
+        "soybean oil",
+        "soy oil",
+        "soya oil",
+        "huile de soja",
+        "aceite de soja",
+        "sojaöl",
+        "sojaolie",
+        "olej sojowy",
+        "olio di soia",
+        "soy bean oil",
+        "soja-öl"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "sunflower_oil",
+      "off_tags": [
+        "en:sunflower-oil",
+        "en:sunflower-seed-oil"
+      ],
+      "aliases": [
+        "sunflower oil",
+        "sunflower seed oil",
+        "huile de tournesol",
+        "aceite de girasol",
+        "sonnenblumenöl",
+        "zonnebloemolie",
+        "olej słonecznikowy",
+        "olio di girasole",
+        "high oleic sunflower oil",
+        "expeller pressed sunflower oil"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "safflower_oil",
+      "off_tags": [
+        "en:safflower-oil",
+        "en:safflower-seed-oil"
+      ],
+      "aliases": [
+        "safflower oil",
+        "safflower seed oil",
+        "huile de carthame",
+        "aceite de cártamo",
+        "distelöl",
+        "hoog-oliezuur saffloerolie",
+        "high oleic safflower oil"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "corn_oil",
+      "off_tags": [
+        "en:corn-oil",
+        "en:maize-oil",
+        "en:corn-germ-oil"
+      ],
+      "aliases": [
+        "corn oil",
+        "maize oil",
+        "corn germ oil",
+        "huile de maïs",
+        "aceite de maíz",
+        "maisöl",
+        "maisolie",
+        "olej kukurydziany",
+        "olio di mais"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "cottonseed_oil",
+      "off_tags": [
+        "en:cottonseed-oil",
+        "en:cotton-seed-oil"
+      ],
+      "aliases": [
+        "cottonseed oil",
+        "cotton seed oil",
+        "cotton oil",
+        "huile de coton",
+        "aceite de algodón",
+        "baumwollsaatöl"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "grapeseed_oil",
+      "off_tags": [
+        "en:grape-seed-oil",
+        "en:grapeseed-oil"
+      ],
+      "aliases": [
+        "grapeseed oil",
+        "grape seed oil",
+        "huile de pépin de raisin",
+        "aceite de semilla de uva",
+        "traubenkernöl",
+        "druivenpitolie"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "rice_bran_oil",
+      "off_tags": [
+        "en:rice-bran-oil",
+        "en:rice-oil"
+      ],
+      "aliases": [
+        "rice bran oil",
+        "rice oil",
+        "huile de son de riz",
+        "aceite de salvado de arroz",
+        "reiskleieöl"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "vegetable_oil",
+      "off_tags": [
+        "en:vegetable-oil",
+        "en:vegetable-oils"
+      ],
+      "aliases": [
+        "vegetable oil",
+        "vegetable oils",
+        "huile végétale",
+        "huiles végétales",
+        "aceite vegetal",
+        "pflanzliches öl",
+        "olio vegetale",
+        "plantenolie",
+        "olej roślinny",
+        "refined vegetable oil",
+        "fractionated vegetable oil",
+        "interesterified vegetable oil"
+      ],
+      "category": "seed_oils",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "palm_oil",
+      "off_tags": [
+        "en:palm-oil",
+        "en:palm-kernel-oil"
+      ],
+      "aliases": [
+        "palm oil",
+        "palm kernel oil",
+        "huile de palme",
+        "aceite de palma",
+        "palmöl",
+        "palmolie",
+        "olej palmowy",
+        "olio di palma",
+        "palm olein",
+        "palm stearin"
+      ],
+      "category": "seed_oils",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "red_40",
+      "off_tags": [
+        "en:e129"
+      ],
+      "aliases": [
+        "red 40",
+        "red no. 40",
+        "red 40 lake",
+        "allura red",
+        "allura red ac",
+        "fd&c red no. 40",
+        "fd&c red 40",
+        "e129",
+        "e-129",
+        "rouge allura",
+        "rojo allura"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "yellow_5",
+      "off_tags": [
+        "en:e102"
+      ],
+      "aliases": [
+        "yellow 5",
+        "yellow no. 5",
+        "yellow 5 lake",
+        "tartrazine",
+        "fd&c yellow no. 5",
+        "fd&c yellow 5",
+        "e102",
+        "e-102",
+        "tartrazina",
+        "tartrazin"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "yellow_6",
+      "off_tags": [
+        "en:e110"
+      ],
+      "aliases": [
+        "yellow 6",
+        "yellow no. 6",
+        "yellow 6 lake",
+        "sunset yellow",
+        "sunset yellow fcf",
+        "fd&c yellow no. 6",
+        "fd&c yellow 6",
+        "e110",
+        "e-110",
+        "amarillo ocaso",
+        "gelborange s"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "blue_1",
+      "off_tags": [
+        "en:e133"
+      ],
+      "aliases": [
+        "blue 1",
+        "blue no. 1",
+        "blue 1 lake",
+        "brilliant blue",
+        "brilliant blue fcf",
+        "fd&c blue no. 1",
+        "fd&c blue 1",
+        "e133",
+        "e-133",
+        "bleu brillant"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "blue_2",
+      "off_tags": [
+        "en:e132"
+      ],
+      "aliases": [
+        "blue 2",
+        "blue no. 2",
+        "indigo carmine",
+        "indigotine",
+        "fd&c blue no. 2",
+        "e132",
+        "e-132"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "red_3",
+      "off_tags": [
+        "en:e127"
+      ],
+      "aliases": [
+        "red 3",
+        "red no. 3",
+        "erythrosine",
+        "fd&c red no. 3",
+        "e127",
+        "e-127"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "green_3",
+      "off_tags": [
+        "en:e143"
+      ],
+      "aliases": [
+        "green 3",
+        "fast green fcf",
+        "fd&c green no. 3",
+        "e143",
+        "e-143"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "bha",
+      "off_tags": [
+        "en:e320"
+      ],
+      "aliases": [
+        "bha",
+        "butylated hydroxyanisole",
+        "e320",
+        "e-320"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "bht",
+      "off_tags": [
+        "en:e321"
+      ],
+      "aliases": [
+        "bht",
+        "butylated hydroxytoluene",
+        "e321",
+        "e-321"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "tbhq",
+      "off_tags": [
+        "en:e319"
+      ],
+      "aliases": [
+        "tbhq",
+        "tert-butylhydroquinone",
+        "tertiary butylhydroquinone",
+        "e319",
+        "e-319"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "propyl_gallate",
+      "off_tags": [
+        "en:e310"
+      ],
+      "aliases": [
+        "propyl gallate",
+        "e310",
+        "e-310",
+        "gallate de propyle"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "sodium_nitrite",
+      "off_tags": [
+        "en:e250"
+      ],
+      "aliases": [
+        "sodium nitrite",
+        "sodium nitrite (e250)",
+        "e250",
+        "e-250",
+        "nitrite de sodium"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "sodium_nitrate",
+      "off_tags": [
+        "en:e251"
+      ],
+      "aliases": [
+        "sodium nitrate",
+        "e251",
+        "e-251",
+        "nitrate de sodium"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "potassium_bromate",
+      "off_tags": [
+        "en:e924"
+      ],
+      "aliases": [
+        "potassium bromate",
+        "e924",
+        "e-924",
+        "bromate de potassium"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "caramel_color_iii",
+      "off_tags": [
+        "en:e150c"
+      ],
+      "aliases": [
+        "caramel color iii",
+        "caramel colour iii",
+        "ammonia caramel",
+        "e150c",
+        "e-150c"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "caramel_color_iv",
+      "off_tags": [
+        "en:e150d"
+      ],
+      "aliases": [
+        "caramel color iv",
+        "caramel colour iv",
+        "sulfite ammonia caramel",
+        "e150d",
+        "e-150d",
+        "caramel color",
+        "caramel colour",
+        "caramel coloring",
+        "caramel colouring",
+        "colorante caramelo"
+      ],
+      "category": "harmful_additives",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "aspartame",
+      "off_tags": [
+        "en:e951"
+      ],
+      "aliases": [
+        "aspartame",
+        "e951",
+        "e-951",
+        "nutrasweet",
+        "aspartam",
+        "aspartame (phenylalanine)",
+        "phenylalanine (aspartame)"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "sucralose",
+      "off_tags": [
+        "en:e955"
+      ],
+      "aliases": [
+        "sucralose",
+        "e955",
+        "e-955",
+        "splenda",
+        "sucralosa",
+        "sucralose (splenda)"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "acesulfame_potassium",
+      "off_tags": [
+        "en:e950"
+      ],
+      "aliases": [
+        "acesulfame potassium",
+        "acesulfame-k",
+        "acesulfame k",
+        "ace-k",
+        "acesulfamo potásico",
+        "e950",
+        "e-950",
+        "sunett",
+        "sweet one"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "saccharin",
+      "off_tags": [
+        "en:e954"
+      ],
+      "aliases": [
+        "saccharin",
+        "saccharine",
+        "sodium saccharin",
+        "e954",
+        "e-954",
+        "sweet n low",
+        "sacarina"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "neotame",
+      "off_tags": [
+        "en:e961"
+      ],
+      "aliases": [
+        "neotame",
+        "e961",
+        "e-961",
+        "neotamo"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "stevia",
+      "off_tags": [
+        "en:e960"
+      ],
+      "aliases": [
+        "stevia",
+        "steviol glycosides",
+        "stevia leaf extract",
+        "rebaudiosides",
+        "rebaudioside a",
+        "e960",
+        "e-960",
+        "truvia",
+        "stevia rebaudiana"
+      ],
+      "category": "artificial_sweeteners",
+      "risk_level": "low"
+    },
+    {
+      "canonical": "high_fructose_corn_syrup",
+      "off_tags": [
+        "en:high-fructose-corn-syrup",
+        "en:glucose-fructose-syrup"
+      ],
+      "aliases": [
+        "high fructose corn syrup",
+        "high-fructose corn syrup",
+        "hfcs",
+        "hfcs-55",
+        "hfcs-42",
+        "high fructose corn",
+        "glucose-fructose syrup",
+        "glucose fructose syrup",
+        "isoglucose",
+        "fructose-glucose syrup"
+      ],
+      "category": "high_fructose_corn_syrup",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "corn_syrup",
+      "off_tags": [
+        "en:corn-syrup",
+        "en:glucose-syrup"
+      ],
+      "aliases": [
+        "corn syrup",
+        "glucose syrup",
+        "corn syrup solids",
+        "dried corn syrup",
+        "sirop de glucose",
+        "maissirup"
+      ],
+      "category": "high_fructose_corn_syrup",
+      "risk_level": "medium"
+    },
+    {
+      "canonical": "wheat",
+      "off_tags": [
+        "en:wheat",
+        "en:whole-wheat",
+        "en:wheat-flour",
+        "en:whole-grain-wheat",
+        "en:enriched-wheat-flour"
+      ],
+      "aliases": [
+        "wheat",
+        "wheat flour",
+        "whole wheat",
+        "whole wheat flour",
+        "enriched wheat flour",
+        "enriched flour",
+        "bleached wheat flour",
+        "unbleached wheat flour",
+        "durum wheat",
+        "durum wheat flour",
+        "wheat starch",
+        "wheat germ",
+        "wheat bran",
+        "wheat protein",
+        "vital wheat gluten",
+        "whole grain wheat",
+        "semolina",
+        "semolina flour"
+      ],
+      "category": "gluten",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "barley",
+      "off_tags": [
+        "en:barley",
+        "en:malted-barley",
+        "en:barley-flour",
+        "en:barley-malt"
+      ],
+      "aliases": [
+        "barley",
+        "barley flour",
+        "barley malt",
+        "malted barley",
+        "barley extract",
+        "pearl barley",
+        "whole grain barley",
+        "malt",
+        "malt extract",
+        "barley malt extract",
+        "malted barley flour"
+      ],
+      "category": "gluten",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "rye",
+      "off_tags": [
+        "en:rye",
+        "en:rye-flour"
+      ],
+      "aliases": [
+        "rye",
+        "rye flour",
+        "rye bread",
+        "whole grain rye",
+        "rye meal",
+        "rye malt"
+      ],
+      "category": "gluten",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "spelt",
+      "off_tags": [
+        "en:spelt",
+        "en:spelt-flour"
+      ],
+      "aliases": [
+        "spelt",
+        "spelt flour",
+        "whole spelt",
+        "dinkel",
+        "dinkelweizen"
+      ],
+      "category": "gluten",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "gluten",
+      "off_tags": [
+        "en:gluten",
+        "en:wheat-gluten"
+      ],
+      "aliases": [
+        "gluten",
+        "wheat gluten",
+        "vital wheat gluten",
+        "gluten (wheat)"
+      ],
+      "category": "gluten",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "milk",
+      "off_tags": [
+        "en:milk",
+        "en:whole-milk",
+        "en:skim-milk",
+        "en:low-fat-milk",
+        "en:nonfat-milk",
+        "en:milk-powder",
+        "en:dried-milk"
+      ],
+      "aliases": [
+        "milk",
+        "whole milk",
+        "skim milk",
+        "nonfat milk",
+        "low-fat milk",
+        "reduced fat milk",
+        "dried milk",
+        "milk powder",
+        "nonfat dry milk",
+        "whole milk powder",
+        "dry milk solids",
+        "milk solids",
+        "milk (ingredient)"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "butter",
+      "off_tags": [
+        "en:butter",
+        "en:unsalted-butter",
+        "en:salted-butter"
+      ],
+      "aliases": [
+        "butter",
+        "unsalted butter",
+        "salted butter",
+        "sweet cream butter",
+        "butter (milk)",
+        "clarified butter",
+        "ghee",
+        "butterfat",
+        "anhydrous milkfat",
+        "anhydrous butter"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "cream",
+      "off_tags": [
+        "en:cream",
+        "en:heavy-cream",
+        "en:sour-cream",
+        "en:whipping-cream"
+      ],
+      "aliases": [
+        "cream",
+        "heavy cream",
+        "whipping cream",
+        "sour cream",
+        "half and half",
+        "half-and-half",
+        "light cream",
+        "clotted cream",
+        "creme fraiche",
+        "crème fraîche"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "cheese",
+      "off_tags": [
+        "en:cheese",
+        "en:cheddar",
+        "en:parmesan",
+        "en:mozzarella"
+      ],
+      "aliases": [
+        "cheese",
+        "cheddar",
+        "cheddar cheese",
+        "parmesan",
+        "parmesan cheese",
+        "mozzarella",
+        "mozzarella cheese",
+        "cream cheese",
+        "cottage cheese",
+        "ricotta",
+        "swiss cheese",
+        "american cheese",
+        "processed cheese",
+        "cheese powder",
+        "dried cheese",
+        "romano cheese",
+        "blue cheese",
+        "gouda",
+        "brie"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "whey",
+      "off_tags": [
+        "en:whey",
+        "en:whey-protein",
+        "en:whey-powder"
+      ],
+      "aliases": [
+        "whey",
+        "whey protein",
+        "whey powder",
+        "whey protein concentrate",
+        "whey protein isolate",
+        "sweet whey",
+        "demineralized whey",
+        "whey solids",
+        "dried whey"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "casein",
+      "off_tags": [
+        "en:casein",
+        "en:sodium-caseinate",
+        "en:calcium-caseinate"
+      ],
+      "aliases": [
+        "casein",
+        "sodium caseinate",
+        "calcium caseinate",
+        "milk protein",
+        "micellar casein",
+        "caseinate",
+        "milk protein concentrate",
+        "milk protein isolate"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "lactose",
+      "off_tags": [
+        "en:lactose"
+      ],
+      "aliases": [
+        "lactose",
+        "milk sugar",
+        "lactulose"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "yogurt",
+      "off_tags": [
+        "en:yogurt",
+        "en:yoghurt"
+      ],
+      "aliases": [
+        "yogurt",
+        "yoghurt",
+        "greek yogurt",
+        "nonfat yogurt",
+        "plain yogurt"
+      ],
+      "category": "dairy",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "peanuts",
+      "off_tags": [
+        "en:peanuts",
+        "en:peanut",
+        "en:groundnut",
+        "en:peanut-oil",
+        "en:peanut-butter"
+      ],
+      "aliases": [
+        "peanuts",
+        "peanut",
+        "groundnuts",
+        "groundnut",
+        "peanut butter",
+        "peanut oil",
+        "peanut flour",
+        "peanut paste",
+        "monkey nuts",
+        "arachis oil"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "almonds",
+      "off_tags": [
+        "en:almonds",
+        "en:almond",
+        "en:almond-flour",
+        "en:almond-oil",
+        "en:almond-butter"
+      ],
+      "aliases": [
+        "almonds",
+        "almond",
+        "almond flour",
+        "almond meal",
+        "almond butter",
+        "almond oil",
+        "ground almonds",
+        "sliced almonds",
+        "almond extract",
+        "almond milk"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "cashews",
+      "off_tags": [
+        "en:cashews",
+        "en:cashew",
+        "en:cashew-butter"
+      ],
+      "aliases": [
+        "cashews",
+        "cashew",
+        "cashew nuts",
+        "cashew butter",
+        "cashew paste",
+        "cashew cream"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "walnuts",
+      "off_tags": [
+        "en:walnuts",
+        "en:walnut",
+        "en:walnut-oil"
+      ],
+      "aliases": [
+        "walnuts",
+        "walnut",
+        "black walnuts",
+        "walnut oil",
+        "ground walnuts"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "pecans",
+      "off_tags": [
+        "en:pecans",
+        "en:pecan"
+      ],
+      "aliases": [
+        "pecans",
+        "pecan",
+        "pecan pieces",
+        "pecan halves"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "hazelnuts",
+      "off_tags": [
+        "en:hazelnuts",
+        "en:hazelnut",
+        "en:hazelnut-oil"
+      ],
+      "aliases": [
+        "hazelnuts",
+        "hazelnut",
+        "filberts",
+        "hazelnut oil",
+        "hazelnut paste",
+        "hazelnut butter"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "pistachios",
+      "off_tags": [
+        "en:pistachios",
+        "en:pistachio"
+      ],
+      "aliases": [
+        "pistachios",
+        "pistachio",
+        "pistachio nuts",
+        "pistachio paste"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "macadamia_nuts",
+      "off_tags": [
+        "en:macadamia-nuts",
+        "en:macadamia"
+      ],
+      "aliases": [
+        "macadamia nuts",
+        "macadamia",
+        "macadamia nut"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "brazil_nuts",
+      "off_tags": [
+        "en:brazil-nuts"
+      ],
+      "aliases": [
+        "brazil nuts",
+        "brazil nut"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "pine_nuts",
+      "off_tags": [
+        "en:pine-nuts",
+        "en:pignolia"
+      ],
+      "aliases": [
+        "pine nuts",
+        "pine nut",
+        "pignolia",
+        "pinon nuts"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "tree_nuts",
+      "off_tags": [
+        "en:tree-nuts"
+      ],
+      "aliases": [
+        "tree nuts",
+        "mixed nuts",
+        "nut pieces",
+        "nuts"
+      ],
+      "category": "nuts",
+      "risk_level": "high"
+    },
+    {
+      "canonical": "eggs",
+      "off_tags": [
+        "en:eggs",
+        "en:egg",
+        "en:whole-egg",
+        "en:egg-yolk",
+        "en:egg-white",
+        "en:egg-powder"
+      ],
+      "aliases": [
+        "eggs",
+        "egg",
+        "whole egg",
+        "egg yolk",
+        "egg white",
+        "egg whites",
+        "egg yolks",
+        "dried eggs",
+        "egg powder",
+        "egg solids",
+        "liquid eggs",
+        "pasteurized eggs",
+        "albumin",
+        "egg albumin",
+        "ovalbumin",
+        "lysozyme"
+      ],
+      "category": "eggs",
+      "risk_level": "high"
+    }
+  ]
+}

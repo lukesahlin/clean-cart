@@ -1,0 +1,826 @@
+{
+  "_comment": "Maps common grocery search terms to Open Food Facts category tags. Add more here as needed.",
+  "items": {
+    "tortilla chips": {
+      "off_categories": [
+        "en:tortilla-chips",
+        "en:corn-chips"
+      ],
+      "keywords": [
+        "tortilla chip",
+        "corn chip",
+        "tostito"
+      ]
+    },
+    "potato chips": {
+      "off_categories": [
+        "en:potato-chips"
+      ],
+      "keywords": [
+        "potato chip",
+        "kettle chip",
+        "crisp"
+      ]
+    },
+    "mayonnaise": {
+      "off_categories": [
+        "en:mayonnaises",
+        "en:mayonnaise",
+        "en:condiments-and-sauces"
+      ],
+      "keywords": [
+        "mayonnaise",
+        "mayo"
+      ]
+    },
+    "ketchup": {
+      "off_categories": [
+        "en:ketchups"
+      ],
+      "keywords": [
+        "ketchup",
+        "catsup"
+      ]
+    },
+    "mustard": {
+      "off_categories": [
+        "en:mustards"
+      ],
+      "keywords": [
+        "mustard",
+        "dijon",
+        "yellow mustard"
+      ]
+    },
+    "salad dressing": {
+      "off_categories": [
+        "en:salad-dressings"
+      ],
+      "keywords": [
+        "ranch dressing",
+        "italian dressing",
+        "vinaigrette",
+        "caesar dressing"
+      ]
+    },
+    "ranch dressing": {
+      "off_categories": [
+        "en:salad-dressings"
+      ],
+      "keywords": [
+        "ranch dressing",
+        "ranch"
+      ]
+    },
+    "bread": {
+      "off_categories": [
+        "en:breads",
+        "en:sandwich-breads"
+      ],
+      "keywords": [
+        "bread",
+        "sandwich bread",
+        "white bread",
+        "whole wheat bread",
+        "sourdough"
+      ]
+    },
+    "crackers": {
+      "off_categories": [
+        "en:crackers"
+      ],
+      "keywords": [
+        "cracker",
+        "water cracker",
+        "rice cracker"
+      ]
+    },
+    "granola bar": {
+      "off_categories": [
+        "en:granola-bars",
+        "en:cereal-bars"
+      ],
+      "keywords": [
+        "granola bar",
+        "chewy bar",
+        "protein bar",
+        "snack bar"
+      ]
+    },
+    "granola": {
+      "off_categories": [
+        "en:granolas",
+        "en:granola",
+        "en:mueslis",
+        "en:breakfast-cereals"
+      ],
+      "keywords": [
+        "granola",
+        "granola cereal",
+        "muesli"
+      ]
+    },
+    "cereal": {
+      "off_categories": [
+        "en:breakfast-cereals"
+      ],
+      "keywords": [
+        "cereal",
+        "corn flakes",
+        "oats",
+        "muesli"
+      ]
+    },
+    "oatmeal": {
+      "off_categories": [
+        "en:oatmeals",
+        "en:rolled-oats"
+      ],
+      "keywords": [
+        "oatmeal",
+        "rolled oats",
+        "instant oats",
+        "oat packet"
+      ]
+    },
+    "peanut butter": {
+      "off_categories": [
+        "en:peanut-butters"
+      ],
+      "keywords": [
+        "peanut butter",
+        "natural peanut butter"
+      ]
+    },
+    "almond butter": {
+      "off_categories": [
+        "en:nut-butters"
+      ],
+      "keywords": [
+        "almond butter",
+        "nut butter"
+      ]
+    },
+    "jelly": {
+      "off_categories": [
+        "en:jams-and-jellies"
+      ],
+      "keywords": [
+        "jelly",
+        "jam",
+        "fruit spread",
+        "preserves"
+      ]
+    },
+    "jam": {
+      "off_categories": [
+        "en:jams-and-jellies"
+      ],
+      "keywords": [
+        "jam",
+        "fruit jam",
+        "strawberry jam",
+        "raspberry jam"
+      ]
+    },
+    "cream cheese": {
+      "off_categories": [
+        "en:cream-cheeses"
+      ],
+      "keywords": [
+        "cream cheese",
+        "neufchatel"
+      ]
+    },
+    "butter": {
+      "off_categories": [
+        "en:butters"
+      ],
+      "keywords": [
+        "butter",
+        "salted butter",
+        "unsalted butter",
+        "cultured butter"
+      ]
+    },
+    "margarine": {
+      "off_categories": [
+        "en:margarines"
+      ],
+      "keywords": [
+        "margarine",
+        "spread",
+        "butter substitute"
+      ]
+    },
+    "cooking oil": {
+      "off_categories": [
+        "en:cooking-oils"
+      ],
+      "keywords": [
+        "olive oil",
+        "avocado oil",
+        "coconut oil",
+        "cooking oil"
+      ]
+    },
+    "olive oil": {
+      "off_categories": [
+        "en:olive-oils"
+      ],
+      "keywords": [
+        "olive oil",
+        "extra virgin olive oil",
+        "evoo"
+      ]
+    },
+    "soy sauce": {
+      "off_categories": [
+        "en:soy-sauces",
+        "en:soy-sauce",
+        "en:condiments"
+      ],
+      "keywords": [
+        "soy sauce",
+        "tamari",
+        "liquid aminos"
+      ]
+    },
+    "hot sauce": {
+      "off_categories": [
+        "en:hot-sauces"
+      ],
+      "keywords": [
+        "hot sauce",
+        "sriracha",
+        "tabasco",
+        "chili sauce"
+      ]
+    },
+    "bbq sauce": {
+      "off_categories": [
+        "en:barbecue-sauces"
+      ],
+      "keywords": [
+        "bbq sauce",
+        "barbecue sauce"
+      ]
+    },
+    "pasta sauce": {
+      "off_categories": [
+        "en:pasta-sauces",
+        "en:tomato-sauces"
+      ],
+      "keywords": [
+        "pasta sauce",
+        "marinara",
+        "tomato sauce",
+        "arrabiata"
+      ]
+    },
+    "salsa": {
+      "off_categories": [
+        "en:salsas"
+      ],
+      "keywords": [
+        "salsa",
+        "pico de gallo"
+      ]
+    },
+    "hummus": {
+      "off_categories": [
+        "en:hummuses"
+      ],
+      "keywords": [
+        "hummus",
+        "chickpea dip"
+      ]
+    },
+    "yogurt": {
+      "off_categories": [
+        "en:yogurts"
+      ],
+      "keywords": [
+        "yogurt",
+        "greek yogurt",
+        "yoghurt"
+      ]
+    },
+    "milk": {
+      "off_categories": [
+        "en:milks"
+      ],
+      "keywords": [
+        "whole milk",
+        "2% milk",
+        "skim milk",
+        "dairy milk"
+      ]
+    },
+    "oat milk": {
+      "off_categories": [
+        "en:oat-milks"
+      ],
+      "keywords": [
+        "oat milk",
+        "oat drink"
+      ]
+    },
+    "almond milk": {
+      "off_categories": [
+        "en:almond-milks"
+      ],
+      "keywords": [
+        "almond milk",
+        "almond drink"
+      ]
+    },
+    "ice cream": {
+      "off_categories": [
+        "en:ice-creams"
+      ],
+      "keywords": [
+        "ice cream",
+        "frozen dessert",
+        "gelato"
+      ]
+    },
+    "frozen pizza": {
+      "off_categories": [
+        "en:frozen-pizzas"
+      ],
+      "keywords": [
+        "frozen pizza",
+        "pizza"
+      ]
+    },
+    "chicken nuggets": {
+      "off_categories": [
+        "en:chicken-nuggets"
+      ],
+      "keywords": [
+        "chicken nugget",
+        "chicken tender",
+        "chicken strip"
+      ]
+    },
+    "protein powder": {
+      "off_categories": [
+        "en:protein-supplements"
+      ],
+      "keywords": [
+        "protein powder",
+        "whey protein",
+        "plant protein",
+        "protein shake"
+      ]
+    },
+    "energy drink": {
+      "off_categories": [
+        "en:energy-drinks"
+      ],
+      "keywords": [
+        "energy drink",
+        "energy shot"
+      ]
+    },
+    "soda": {
+      "off_categories": [
+        "en:sodas",
+        "en:colas"
+      ],
+      "keywords": [
+        "soda",
+        "cola",
+        "soft drink",
+        "sparkling water"
+      ]
+    },
+    "juice": {
+      "off_categories": [
+        "en:fruit-juices"
+      ],
+      "keywords": [
+        "orange juice",
+        "apple juice",
+        "grape juice",
+        "fruit juice"
+      ]
+    },
+    "water": {
+      "off_categories": [
+        "en:spring-waters",
+        "en:mineral-waters"
+      ],
+      "keywords": [
+        "bottled water",
+        "spring water",
+        "mineral water"
+      ]
+    },
+    "coffee": {
+      "off_categories": [
+        "en:coffees"
+      ],
+      "keywords": [
+        "ground coffee",
+        "whole bean",
+        "instant coffee",
+        "espresso"
+      ]
+    },
+    "tea": {
+      "off_categories": [
+        "en:teas"
+      ],
+      "keywords": [
+        "green tea",
+        "black tea",
+        "herbal tea",
+        "tea bag"
+      ]
+    },
+    "soup": {
+      "off_categories": [
+        "en:soups"
+      ],
+      "keywords": [
+        "canned soup",
+        "tomato soup",
+        "chicken soup",
+        "broth"
+      ]
+    },
+    "canned beans": {
+      "off_categories": [
+        "en:canned-legumes"
+      ],
+      "keywords": [
+        "black beans",
+        "kidney beans",
+        "chickpeas",
+        "lentils",
+        "canned beans"
+      ]
+    },
+    "canned tomatoes": {
+      "off_categories": [
+        "en:canned-tomatoes"
+      ],
+      "keywords": [
+        "canned tomatoes",
+        "diced tomatoes",
+        "crushed tomatoes",
+        "tomato paste"
+      ]
+    },
+    "tuna": {
+      "off_categories": [
+        "en:canned-tuna"
+      ],
+      "keywords": [
+        "canned tuna",
+        "tuna fish",
+        "albacore tuna"
+      ]
+    },
+    "pasta": {
+      "off_categories": [
+        "en:pastas"
+      ],
+      "keywords": [
+        "spaghetti",
+        "penne",
+        "pasta",
+        "noodles",
+        "rigatoni",
+        "fusilli"
+      ]
+    },
+    "rice": {
+      "off_categories": [
+        "en:rices"
+      ],
+      "keywords": [
+        "white rice",
+        "brown rice",
+        "jasmine rice",
+        "basmati",
+        "rice"
+      ]
+    },
+    "flour": {
+      "off_categories": [
+        "en:flours"
+      ],
+      "keywords": [
+        "all purpose flour",
+        "bread flour",
+        "almond flour",
+        "flour"
+      ]
+    },
+    "sugar": {
+      "off_categories": [
+        "en:sugars"
+      ],
+      "keywords": [
+        "white sugar",
+        "brown sugar",
+        "cane sugar",
+        "powdered sugar"
+      ]
+    },
+    "honey": {
+      "off_categories": [
+        "en:honeys"
+      ],
+      "keywords": [
+        "raw honey",
+        "honey",
+        "manuka honey"
+      ]
+    },
+    "maple syrup": {
+      "off_categories": [
+        "en:maple-syrups"
+      ],
+      "keywords": [
+        "maple syrup",
+        "pure maple syrup"
+      ]
+    },
+    "chocolate": {
+      "off_categories": [
+        "en:chocolates",
+        "en:dark-chocolates"
+      ],
+      "keywords": [
+        "dark chocolate",
+        "milk chocolate",
+        "chocolate bar"
+      ]
+    },
+    "cookies": {
+      "off_categories": [
+        "en:cookies"
+      ],
+      "keywords": [
+        "cookie",
+        "biscuit",
+        "sandwich cookie"
+      ]
+    },
+    "chips": {
+      "off_categories": [
+        "en:chips-and-crisps",
+        "en:potato-chips",
+        "en:corn-chips"
+      ],
+      "keywords": [
+        "potato chips",
+        "tortilla chips",
+        "kettle chips",
+        "corn chips"
+      ]
+    },
+    "popcorn": {
+      "off_categories": [
+        "en:popcorns"
+      ],
+      "keywords": [
+        "popcorn",
+        "microwave popcorn"
+      ]
+    },
+    "protein bar": {
+      "off_categories": [
+        "en:protein-bars"
+      ],
+      "keywords": [
+        "protein bar",
+        "snack bar",
+        "nutrition bar"
+      ]
+    },
+    "trail mix": {
+      "off_categories": [
+        "en:trail-mixes"
+      ],
+      "keywords": [
+        "trail mix",
+        "nut mix",
+        "snack mix"
+      ]
+    },
+    "nuts": {
+      "off_categories": [
+        "en:nuts"
+      ],
+      "keywords": [
+        "almonds",
+        "cashews",
+        "walnuts",
+        "pecans",
+        "mixed nuts"
+      ]
+    },
+    "frozen vegetables": {
+      "off_categories": [
+        "en:frozen-vegetables"
+      ],
+      "keywords": [
+        "frozen broccoli",
+        "frozen corn",
+        "frozen peas",
+        "mixed vegetables"
+      ]
+    },
+    "frozen fruit": {
+      "off_categories": [
+        "en:frozen-fruits"
+      ],
+      "keywords": [
+        "frozen berries",
+        "frozen mango",
+        "frozen fruit"
+      ]
+    },
+    "sandwich meat": {
+      "off_categories": [
+        "en:deli-meats"
+      ],
+      "keywords": [
+        "deli meat",
+        "lunch meat",
+        "turkey slices",
+        "ham slices",
+        "salami"
+      ]
+    },
+    "bacon": {
+      "off_categories": [
+        "en:bacons"
+      ],
+      "keywords": [
+        "bacon",
+        "turkey bacon",
+        "uncured bacon"
+      ]
+    },
+    "sausage": {
+      "off_categories": [
+        "en:sausages"
+      ],
+      "keywords": [
+        "sausage",
+        "bratwurst",
+        "italian sausage",
+        "breakfast sausage"
+      ]
+    },
+    "frozen waffles": {
+      "off_categories": [
+        "en:frozen-waffles"
+      ],
+      "keywords": [
+        "frozen waffles",
+        "toaster waffles",
+        "eggo"
+      ]
+    },
+    "cheese": {
+      "off_categories": [
+        "en:cheeses"
+      ],
+      "keywords": [
+        "cheddar",
+        "mozzarella",
+        "swiss cheese",
+        "american cheese",
+        "parmesan"
+      ]
+    },
+    "eggs": {
+      "off_categories": [
+        "en:eggs",
+        "en:egg",
+        "en:fresh-eggs"
+      ],
+      "keywords": [
+        "eggs",
+        "free range eggs",
+        "organic eggs",
+        "cage free eggs"
+      ]
+    },
+    "kefir": {
+      "off_categories": [
+        "en:kefirs"
+      ],
+      "keywords": [
+        "kefir",
+        "drinkable yogurt",
+        "cultured milk"
+      ]
+    },
+    "kombucha": {
+      "off_categories": [
+        "en:kombuchas"
+      ],
+      "keywords": [
+        "kombucha",
+        "fermented tea"
+      ]
+    },
+    "sparkling water": {
+      "off_categories": [
+        "en:sparkling-waters",
+        "en:sparkling-water",
+        "en:waters"
+      ],
+      "keywords": [
+        "sparkling water",
+        "seltzer",
+        "carbonated water",
+        "lacroix"
+      ]
+    },
+    "sports drink": {
+      "off_categories": [
+        "en:sports-drinks"
+      ],
+      "keywords": [
+        "gatorade",
+        "powerade",
+        "sports drink",
+        "electrolyte drink"
+      ]
+    },
+    "baby food": {
+      "off_categories": [
+        "en:baby-foods"
+      ],
+      "keywords": [
+        "baby food",
+        "baby puree",
+        "infant food",
+        "gerber"
+      ]
+    },
+    "condiments": {
+      "off_categories": [
+        "en:condiments"
+      ],
+      "keywords": [
+        "condiment",
+        "dipping sauce",
+        "sandwich spread"
+      ]
+    },
+    "vinegar": {
+      "off_categories": [
+        "en:vinegars"
+      ],
+      "keywords": [
+        "apple cider vinegar",
+        "white vinegar",
+        "balsamic vinegar",
+        "red wine vinegar"
+      ]
+    },
+    "pickle": {
+      "off_categories": [
+        "en:pickles"
+      ],
+      "keywords": [
+        "dill pickle",
+        "bread and butter pickle",
+        "gherkin",
+        "pickle"
+      ]
+    },
+    "olives": {
+      "off_categories": [
+        "en:olives"
+      ],
+      "keywords": [
+        "kalamata olives",
+        "black olives",
+        "green olives",
+        "olives"
+      ]
+    },
+    "jerky": {
+      "off_categories": [
+        "en:dried-meats"
+      ],
+      "keywords": [
+        "beef jerky",
+        "turkey jerky",
+        "meat stick",
+        "jerky"
+      ]
+    }
+  }
+}

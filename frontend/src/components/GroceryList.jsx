@@ -1,0 +1,233 @@
+// GroceryList.jsx — redesigned mobile-first list builder
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { fetchAutocomplete } from '../api.js'
+
+const EXAMPLES = ['tortilla chips', 'mayonnaise', 'granola bars', 'ranch dressing', 'peanut butter', 'greek yogurt', 'salad dressing', 'crackers']
+
+export default function GroceryList({ savedLists, setSavedLists, onSearch, loading, error }) {
+  const [items, setItems] = useState([])
+  const [inputValue, setInputValue] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showSug, setShowSug] = useState(false)
+  const [activeSug, setActiveSug] = useState(-1)
+  const [showSaveInput, setShowSaveInput] = useState(false)
+  const [saveListName, setSaveListName] = useState('')
+  const inputRef = useRef(null)
+  const sugTimeout = useRef(null)
+
+  useEffect(() => {
+    clearTimeout(sugTimeout.current)
+    if (inputValue.trim().length < 1) { setSuggestions([]); return }
+    sugTimeout.current = setTimeout(async () => {
+      const r = await fetchAutocomplete(inputValue)
+      setSuggestions(r)
+      setShowSug(r.length > 0)
+      setActiveSug(-1)
+    }, 180)
+    return () => clearTimeout(sugTimeout.current)
+  }, [inputValue])
+
+  const addItem = useCallback((name) => {
+    const t = name.trim().toLowerCase()
+    if (!t || items.includes(t)) return
+    setItems(p => [...p, t])
+    setInputValue('')
+    setSuggestions([])
+    setShowSug(false)
+    inputRef.current?.focus()
+  }, [items])
+
+  const removeItem = (item) => setItems(p => p.filter(i => i !== item))
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (activeSug >= 0 && suggestions[activeSug]) addItem(suggestions[activeSug])
+      else if (inputValue.trim()) addItem(inputValue)
+    } else if (e.key === 'ArrowDown') { e.preventDefault(); setActiveSug(p => Math.min(p + 1, suggestions.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveSug(p => Math.max(p - 1, -1)) }
+    else if (e.key === 'Escape') setShowSug(false)
+  }
+
+  const saveCurrentList = () => {
+    if (!saveListName.trim() || !items.length) return
+    setSavedLists(p => [{ id: Date.now(), name: saveListName.trim(), items: [...items] }, ...p].slice(0, 10))
+    setSaveListName('')
+    setShowSaveInput(false)
+  }
+
+  return (
+    <div style={s.page}>
+
+      {/* Hero section */}
+      <div style={s.hero}>
+        <h1 style={s.heroTitle}>What are you shopping for?</h1>
+        <p style={s.heroSub}>Add items and we'll find the cleanest options near you.</p>
+      </div>
+
+      {/* Search input */}
+      <div style={s.inputWrap}>
+        <div style={s.inputRow}>
+          <span style={s.searchIcon}>🔍</span>
+          <input
+            ref={inputRef}
+            style={s.input}
+            type="text"
+            placeholder="Add grocery item…"
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length > 0 && setShowSug(true)}
+            onBlur={() => setTimeout(() => setShowSug(false), 120)}
+            autoComplete="off"
+          />
+          {inputValue.trim() && (
+            <button style={s.addBtn} onMouseDown={() => addItem(inputValue)}>Add</button>
+          )}
+        </div>
+
+        {/* Autocomplete dropdown */}
+        {showSug && (
+          <div style={s.suggestions}>
+            {suggestions.map((s2, i) => (
+              <button
+                key={s2}
+                style={{ ...s.suggestion, ...(i === activeSug ? s.suggestionActive : {}) }}
+                onMouseDown={() => addItem(s2)}
+              >
+                <span style={s.sugIcon}>🔍</span>
+                {s2}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Item chips */}
+      {items.length > 0 && (
+        <div style={s.itemList}>
+          {items.map(item => (
+            <div key={item} style={s.itemChip}>
+              <span style={s.itemChipText}>{item}</span>
+              <button style={s.itemChipRemove} onClick={() => removeItem(item)}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Try these examples */}
+      {items.length === 0 && (
+        <div style={s.examplesSection}>
+          <p style={s.examplesLabel}>Try these</p>
+          <div style={s.examplesRow}>
+            {EXAMPLES.map(e => (
+              <button key={e} style={s.examplePill} onClick={() => addItem(e)}>{e}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && <div style={s.errorBox}>⚠️ {error}</div>}
+
+      {/* CTA button */}
+      {items.length > 0 && (
+        <div style={s.ctaSection}>
+          <button
+            style={{ ...s.ctaBtn, opacity: loading ? 0.7 : 1 }}
+            onClick={() => onSearch(items)}
+            disabled={loading}
+          >
+            {loading ? (
+              <span style={s.ctaBtnInner}>
+                <span style={s.ctaSpinner} />
+                Finding clean picks…
+              </span>
+            ) : (
+              <span style={s.ctaBtnInner}>
+                Find clean picks for {items.length} item{items.length !== 1 ? 's' : ''}  →
+              </span>
+            )}
+          </button>
+
+          <div style={s.saveRow}>
+            {!showSaveInput ? (
+              <button style={s.saveLinkBtn} onClick={() => setShowSaveInput(true)}>Save this list</button>
+            ) : (
+              <div style={s.saveInputRow}>
+                <input
+                  style={s.saveInput}
+                  placeholder="List name…"
+                  value={saveListName}
+                  onChange={e => setSaveListName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveCurrentList()}
+                  autoFocus
+                />
+                <button style={s.saveConfirmBtn} onClick={saveCurrentList}>Save</button>
+                <button style={s.saveCancelBtn} onClick={() => setShowSaveInput(false)}>✕</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Saved lists */}
+      {savedLists.length > 0 && (
+        <div style={s.savedSection}>
+          <p style={s.savedLabel}>Saved lists</p>
+          <div style={s.savedScroll}>
+            {savedLists.map(list => (
+              <button key={list.id} style={s.savedCard} onClick={() => setItems(list.items)}>
+                <div style={s.savedCardName}>{list.name}</div>
+                <div style={s.savedCardCount}>{list.items.length} items</div>
+                <div style={s.savedCardItems}>{list.items.slice(0, 3).join(', ')}{list.items.length > 3 ? '…' : ''}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const s = {
+  page: { minHeight: '100%', background: '#F5F4F1', paddingBottom: 20 },
+  hero: { padding: '28px 20px 20px', background: '#fff', borderBottom: '1px solid #EBEBEB' },
+  heroTitle: { fontSize: 24, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.5px', lineHeight: 1.2 },
+  heroSub: { fontSize: 14, color: '#888', margin: '6px 0 0', lineHeight: 1.5 },
+  inputWrap: { position: 'relative', margin: '16px 16px 0', zIndex: 10 },
+  inputRow: { display: 'flex', alignItems: 'center', background: '#fff', border: '1.5px solid #E0DDD8', borderRadius: 14, padding: '4px 8px 4px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', gap: 8 },
+  searchIcon: { fontSize: 16, flexShrink: 0, opacity: 0.5 },
+  input: { flex: 1, border: 'none', outline: 'none', fontSize: 16, background: 'transparent', padding: '10px 0', color: '#111', minWidth: 0 },
+  addBtn: { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' },
+  suggestions: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', zIndex: 100 },
+  suggestion: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: '#111', textAlign: 'left' },
+  suggestionActive: { background: '#F0F7F1' },
+  sugIcon: { fontSize: 13, opacity: 0.4 },
+  itemList: { display: 'flex', flexWrap: 'wrap', gap: 8, padding: '14px 16px 0' },
+  itemChip: { display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1.5px solid #EBEBEB', borderRadius: 24, padding: '7px 6px 7px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' },
+  itemChipText: { fontSize: 14, fontWeight: 600, color: '#111' },
+  itemChipRemove: { width: 22, height: 22, borderRadius: '50%', background: '#F0EDE8', border: 'none', cursor: 'pointer', fontSize: 15, color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 },
+  examplesSection: { padding: '20px 16px 0' },
+  examplesLabel: { fontSize: 12, fontWeight: 700, color: '#AAA', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px' },
+  examplesRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  examplePill: { background: '#fff', border: '1.5px solid #E8E6E3', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 500, color: '#555', cursor: 'pointer' },
+  errorBox: { margin: '12px 16px', background: '#FFF5F5', border: '1px solid #FFCDD2', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#B71C1C' },
+  ctaSection: { padding: '20px 16px 0' },
+  ctaBtn: { width: '100%', background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 16, padding: '17px 0', fontSize: 16, fontWeight: 800, cursor: 'pointer', letterSpacing: '-0.2px', boxShadow: '0 4px 20px rgba(27,94,32,0.3)' },
+  ctaBtnInner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  ctaSpinner: { width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.3)', borderTop: '2.5px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' },
+  saveRow: { marginTop: 10, display: 'flex', justifyContent: 'center' },
+  saveLinkBtn: { background: 'none', border: 'none', fontSize: 13, color: '#888', cursor: 'pointer', textDecoration: 'underline', padding: '6px 0' },
+  saveInputRow: { display: 'flex', gap: 8, width: '100%' },
+  saveInput: { flex: 1, border: '1.5px solid #E0DDD8', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', background: '#fff' },
+  saveConfirmBtn: { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
+  saveCancelBtn: { background: '#F0EDE8', color: '#666', border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 14, cursor: 'pointer' },
+  savedSection: { padding: '24px 16px 0' },
+  savedLabel: { fontSize: 12, fontWeight: 700, color: '#AAA', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px' },
+  savedScroll: { display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 },
+  savedCard: { flexShrink: 0, width: 160, background: '#fff', border: '1.5px solid #EBEBEB', borderRadius: 14, padding: '14px', textAlign: 'left', cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' },
+  savedCardName: { fontSize: 14, fontWeight: 700, color: '#111', marginBottom: 3 },
+  savedCardCount: { fontSize: 12, color: '#1B5E20', fontWeight: 600, marginBottom: 5 },
+  savedCardItems: { fontSize: 12, color: '#AAA', lineHeight: 1.4 },
+}

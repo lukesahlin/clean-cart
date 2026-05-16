@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Env files (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# SQLite caches (regenerate automatically)
+*.db
+*.db-shm
+*.db-wal
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/.vite/
+.npm/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Playwright browsers (large, auto-installed)
+playwright-browsers/

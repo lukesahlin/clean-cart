@@ -1,0 +1,26 @@
+{
+  "name": "Clean Cart",
+  "short_name": "Clean Cart",
+  "description": "Find clean grocery products — no seed oils, no junk.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F4F1",
+  "theme_color": "#1B5E20",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "health", "shopping"],
+  "screenshots": []
+}
