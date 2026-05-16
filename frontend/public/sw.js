@@ -2,7 +2,7 @@
 // Caches the app shell so the UI loads instantly and works offline.
 // Network-first for API calls, cache-first for static assets.
 
-const CACHE_NAME = 'cleancart-v2'
+const CACHE_NAME = 'cleancart-v3'
 
 const STATIC_ASSETS = [
   '/',
@@ -28,13 +28,14 @@ self.addEventListener('activate', event => {
   self.clients.claim()
 })
 
-// Fetch: network-first for /api/* so we always get fresh data,
-// cache-first for everything else (JS, CSS, fonts, images)
+// Fetch: network-first for API calls and cross-origin requests,
+// cache-first for same-origin static assets
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
 
-  // Always go to network for API calls
-  if (url.pathname.startsWith('/api/')) {
+  // Always go straight to network for cross-origin requests (Railway backend)
+  // and for local /api/* paths — never cache these
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request))
     return
   }
