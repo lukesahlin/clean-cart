@@ -1,29 +1,30 @@
-// App.jsx — Clean Cart redesign
-// Bottom tab navigation: List | Scan | Settings
-
+// App.jsx -- Clean Cart
 import { useState, useCallback } from 'react'
 import GroceryList from './components/GroceryList.jsx'
 import Results from './components/Results.jsx'
 import ProductDetail from './components/ProductDetail.jsx'
 import Settings from './components/Settings.jsx'
 import BarcodeScanner from './components/BarcodeScanner.jsx'
+import AuthScreen from './components/AuthScreen.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
+import { useAuth } from './contexts/AuthContext.jsx'
 import { fetchRecommendations } from './api.js'
 
 export default function App() {
+  const { user, loading, signOut } = useAuth()
   const [avoidList, setAvoidList] = useLocalStorage('cleanCart_avoidList', ['seed_oils', 'harmful_additives'])
   const [savedLists, setSavedLists] = useLocalStorage('cleanCart_savedLists', [])
-  const [tab, setTab] = useState('list')           // bottom nav tab
-  const [screen, setScreen] = useState('list')     // 'list' | 'results'
+  const [tab, setTab] = useState('list')
+  const [screen, setScreen] = useState('list')
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
   const [currentItems, setCurrentItems] = useState([])
 
   const handleSearch = useCallback(async (items) => {
     if (!items.length) return
-    setLoading(true)
+    setIsLoading(true)
     setError(null)
     setCurrentItems(items)
     try {
@@ -33,7 +34,7 @@ export default function App() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }, [avoidList])
 
@@ -47,37 +48,50 @@ export default function App() {
     if (t === 'list' && screen !== 'results') setScreen('list')
   }
 
+  // show loading spinner while checking session
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F5F4F1' }}>
+        <div style={{ width: 32, height: 32, border: '3px solid #E8F5E9', borderTop: '3px solid #1B5E20', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
+  // show auth screen if not signed in
+  if (!user) return <AuthScreen />
+
   const mainContent = () => {
     if (tab === 'scan') return <BarcodeScanner avoidList={avoidList} onClose={() => setTab('list')} onProductFound={handleScannedProduct} embedded />
-    if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} />
+    if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && results) {
-        return <Results results={results} items={currentItems} loading={loading} onBack={() => setScreen('list')} onProductClick={setSelectedProduct} />
+        return <Results results={results} items={currentItems} loading={isLoading} onBack={() => setScreen('list')} onProductClick={setSelectedProduct} />
       }
-      return <GroceryList savedLists={savedLists} setSavedLists={setSavedLists} onSearch={handleSearch} loading={loading} error={error} />
+      return <GroceryList savedLists={savedLists} setSavedLists={setSavedLists} onSearch={handleSearch} loading={isLoading} error={error} />
     }
   }
 
   return (
     <div style={s.app}>
-      {/* Header — only on list/results tabs */}
       {tab !== 'scan' && (
         <header style={s.header}>
           <div style={s.logo}>
             <img src="/logo.jpg" alt="Clean Cart" style={s.logoImg} />
           </div>
-          {tab === 'list' && screen === 'results' && (
-            <button style={s.backPill} onClick={() => setScreen('list')}>← New list</button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {tab === 'list' && screen === 'results' && (
+              <button style={s.backPill} onClick={() => setScreen('list')}>← New list</button>
+            )}
+            <span style={s.userEmail}>{user.email?.split('@')[0]}</span>
+          </div>
         </header>
       )}
 
-      {/* Main */}
       <main style={{ ...s.main, paddingBottom: tab === 'scan' ? 0 : 80 }}>
         {mainContent()}
       </main>
 
-      {/* Bottom tab bar */}
       <nav style={s.tabBar}>
         <TabBtn icon="🛒" label="List" active={tab === 'list'} onClick={() => handleTabChange('list')} />
         <TabBtn icon={<BarcodeIcon />} label="Scan" active={tab === 'scan'} onClick={() => handleTabChange('scan')} accent />
@@ -95,9 +109,7 @@ function TabBtn({ icon, label, active, onClick, accent }) {
   return (
     <button style={{ ...s.tabBtn, ...(active ? s.tabBtnActive : {}) }} onClick={onClick}>
       {accent ? (
-        <div style={{ ...s.scanFab, ...(active ? s.scanFabActive : {}) }}>
-          {icon}
-        </div>
+        <div style={{ ...s.scanFab, ...(active ? s.scanFabActive : {}) }}>{icon}</div>
       ) : (
         <span style={s.tabIcon}>{icon}</span>
       )}
@@ -121,10 +133,9 @@ const s = {
   app: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', background: '#F5F4F1', position: 'relative' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', background: '#fff', borderBottom: '1px solid #EBEBEB', position: 'sticky', top: 0, zIndex: 20 },
   logo: { display: 'flex', alignItems: 'center', gap: 8 },
-  logoIcon: { fontSize: 22 },
   logoImg: { height: 32, width: 'auto', objectFit: 'contain' },
-  logoText: { fontWeight: 800, fontSize: 19, color: '#1B5E20', letterSpacing: '-0.5px' },
   backPill: { fontSize: 13, fontWeight: 600, color: '#1B5E20', background: '#E8F5E9', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer' },
+  userEmail: { fontSize: 12, color: '#AAA', fontWeight: 500 },
   main: { flex: 1, overflowY: 'auto' },
   tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', background: '#fff', borderTop: '1px solid #EBEBEB', padding: '8px 0 max(8px, env(safe-area-inset-bottom))', zIndex: 30 },
   tabBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 2px' },

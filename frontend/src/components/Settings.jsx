@@ -87,7 +87,7 @@ function FilterRow({ cat, isOn, isFixed, toggle }) {
   )
 }
 
-export default function Settings({ avoidList, setAvoidList, onClose }) {
+export default function Settings({ avoidList, setAvoidList, onClose, onSignOut }) {
   const toggle = (cat) => {
     const info = CATEGORY_INFO[cat]
     if (info?.alwaysOn) return
@@ -136,11 +136,17 @@ export default function Settings({ avoidList, setAvoidList, onClose }) {
         <p style={s.sectionLabel}>About</p>
         <div style={s.aboutCard}>
           <p style={s.aboutText}>
-            Clean Cart uses Open Food Facts to check ingredient lists and surface the cleanest options for everyday grocery items. Your settings and saved lists live only on your device — no account needed.
+            Clean Cart uses Open Food Facts to check ingredient lists and surface the cleanest options for everyday grocery items.
           </p>
           <p style={s.version}>v0.2.0</p>
         </div>
       </div>
+
+      {onSignOut && (
+        <div style={{ padding: '20px 16px' }}>
+          <button style={s.signOutBtn} onClick={onSignOut}>Sign out</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -164,4 +170,5 @@ const s = {
   aboutCard: { background: '#fff', border: '1.5px solid #EBEBEB', borderRadius: 16, padding: '16px', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' },
   aboutText: { fontSize: 13, color: '#888', lineHeight: 1.6, margin: 0 },
   version: { fontSize: 12, color: '#CCC', margin: '8px 0 0' },
+  signOutBtn: { width: '100%', padding: '14px', background: '#fff', color: '#C62828', border: '1.5px solid #FFCDD2', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer' },
 }

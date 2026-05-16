@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.22.0",
     "leaflet": "^1.9.4",
