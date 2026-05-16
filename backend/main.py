@@ -11,8 +11,9 @@
 
 import os
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 # load .env file if present (dev convenience)
@@ -49,7 +50,23 @@ app.add_middleware(
     allow_origin_regex=r"https://.*\.vercel\.app",   # covers all Vercel preview URLs
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
+
+# Explicit OPTIONS handler — catches Railway edge cases where preflight
+# gets a 404 before reaching the CORSMiddleware
+@app.options("/{rest_of_path:path}")
+async def preflight(rest_of_path: str, request: Request):
+    origin = request.headers.get("origin", "*")
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
 
 # -- Adapter registry ---------------------------------------------------------
 # Maps chain_id to the check_availability function for that store.
