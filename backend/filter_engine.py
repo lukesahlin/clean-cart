@@ -60,6 +60,37 @@ EGG_INGREDIENTS = [
     "eggs", "egg", "egg yolk", "egg white", "albumin", "ovalbumin",
 ]
 
+# ── Diet-style filters (opt-in) ───────────────────────────────────────────────
+
+VEGAN_FLAGGED = [
+    "milk", "butter", "cream", "cheese", "whey", "casein", "lactose",
+    "yogurt", "ghee", "eggs", "egg", "honey", "beeswax", "gelatin",
+    "lard", "tallow", "beef", "pork", "chicken", "meat", "fish",
+    "anchovy", "shellfish", "collagen", "bone broth", "carmine",
+]
+
+VEGETARIAN_FLAGGED = [
+    "gelatin", "lard", "tallow", "beef", "pork", "chicken", "meat",
+    "fish", "anchovy", "shellfish", "bone broth", "carmine",
+    "rennet", "isinglass",
+]
+
+KETO_FLAGGED = [
+    "sugar", "high fructose corn syrup", "corn syrup", "maltodextrin",
+    "dextrose", "glucose", "sucrose", "rice flour", "wheat flour",
+    "corn starch", "potato starch", "tapioca starch", "oat flour",
+    "breadcrumbs", "croutons",
+]
+
+PALEO_FLAGGED = [
+    "wheat", "wheat flour", "whole wheat", "barley", "rye", "oats",
+    "corn", "corn starch", "soybean", "soy", "peanuts",
+    "sugar", "high fructose corn syrup", "corn syrup",
+    "milk", "butter", "cream", "cheese", "whey", "casein",
+    "canola oil", "soybean oil", "sunflower oil", "safflower oil",
+    "vegetable oil", "rice", "legumes", "beans", "lentils",
+]
+
 # Maps category key → list above (used by Settings screen and /categories endpoint)
 CATEGORY_MAP = {
     "seed_oils": SEED_OILS,
@@ -71,6 +102,11 @@ CATEGORY_MAP = {
     "dairy": DAIRY_INGREDIENTS,
     "nuts": NUT_INGREDIENTS,
     "eggs": EGG_INGREDIENTS,
+    # diet-style — opt-in
+    "vegan": VEGAN_FLAGGED,
+    "vegetarian": VEGETARIAN_FLAGGED,
+    "keto": KETO_FLAGGED,
+    "paleo": PALEO_FLAGGED,
 }
 
 # ── Compatibility layer ───────────────────────────────────────────────────────

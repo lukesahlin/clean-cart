@@ -7,16 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { NotFoundException } from '@zxing/library'
 import { fetchProductByBarcode } from '../api.js'
-
-const HISTORY_KEY = 'cleancart_scan_history'
-const MAX_HISTORY = 20
-
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { return [] }
-}
-function saveHistory(items) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY))) } catch {}
-}
+import { saveScan, fetchScanHistory, deleteScan } from '../lib/db.js'
 
 // Score color for the badge
 function scoreColor(score) {
@@ -32,10 +23,15 @@ export default function BarcodeScanner({ avoidList = [], onClose, onProductFound
   const [manualBarcode, setManualBarcode] = useState('')
   const [scanning, setScanning] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)      // fetched product
+  const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
-  const [history, setHistory] = useState(loadHistory)
+  const [history, setHistory] = useState([])
   const [cameraError, setCameraError] = useState(null)
+
+  // load scan history from Supabase on mount
+  useEffect(() => {
+    fetchScanHistory(20).then(setHistory).catch(console.warn)
+  }, [])
 
   const videoRef = useRef(null)
   const readerRef = useRef(null)
@@ -114,17 +110,19 @@ export default function BarcodeScanner({ avoidList = [], onClose, onProductFound
     setResult(data)
     setLoading(false)
 
-    // update history
+    // save to Supabase and update local state
     const entry = {
       barcode: trimmed,
       product_name: data.product_name,
       brand: data.brand,
-      health_score: data.health_score,
+      image_url: data.image_url,
+      health_score: data.health_score?.score,
+      grade: data.health_score?.grade,
+      is_clean: data.filter_result?.is_clean,
       scanned_at: new Date().toISOString(),
     }
-    const updated = [entry, ...history.filter(h => h.barcode !== trimmed)]
-    setHistory(updated)
-    saveHistory(updated)
+    await saveScan(entry)
+    setHistory(prev => [entry, ...prev.filter(h => h.barcode !== trimmed)].slice(0, 20))
   }, [avoidList, history])
 
   const handleManualSubmit = (e) => {
@@ -134,9 +132,17 @@ export default function BarcodeScanner({ avoidList = [], onClose, onProductFound
 
   const handleHistoryTap = (entry) => handleBarcode(entry.barcode)
 
-  const clearHistory = () => {
-    setHistory([])
-    saveHistory([])
+  const clearHistory = () => setHistory([])
+
+  const handleDeleteScan = async (e, id) => {
+    e.stopPropagation()
+    if (!id) return
+    try {
+      await deleteScan(id)
+      setHistory(prev => prev.filter(h => h.id !== id))
+    } catch (err) {
+      console.warn('Delete scan failed:', err)
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────

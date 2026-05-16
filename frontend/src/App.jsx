@@ -13,7 +13,6 @@ import { fetchRecommendations } from './api.js'
 export default function App() {
   const { user, loading, signOut } = useAuth()
   const [avoidList, setAvoidList] = useLocalStorage('cleanCart_avoidList', ['seed_oils', 'harmful_additives'])
-  const [savedLists, setSavedLists] = useLocalStorage('cleanCart_savedLists', [])
   const [tab, setTab] = useState('list')
   const [screen, setScreen] = useState('list')
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -68,7 +67,7 @@ export default function App() {
       if (screen === 'results' && results) {
         return <Results results={results} items={currentItems} loading={isLoading} onBack={() => setScreen('list')} onProductClick={setSelectedProduct} />
       }
-      return <GroceryList savedLists={savedLists} setSavedLists={setSavedLists} onSearch={handleSearch} loading={isLoading} error={error} />
+      return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} />
     }
   }
 

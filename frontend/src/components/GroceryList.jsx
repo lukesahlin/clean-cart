@@ -1,11 +1,12 @@
-// GroceryList.jsx — redesigned mobile-first list builder
+// GroceryList.jsx -- grocery list builder with Supabase-synced saved lists
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { fetchAutocomplete } from '../api.js'
+import { fetchSavedLists, saveList, deleteList } from '../lib/db.js'
 
 const EXAMPLES = ['tortilla chips', 'mayonnaise', 'granola bars', 'ranch dressing', 'peanut butter', 'greek yogurt', 'salad dressing', 'crackers']
 
-export default function GroceryList({ savedLists, setSavedLists, onSearch, loading, error }) {
+export default function GroceryList({ onSearch, loading, error }) {
   const [items, setItems] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -13,8 +14,19 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
   const [activeSug, setActiveSug] = useState(-1)
   const [showSaveInput, setShowSaveInput] = useState(false)
   const [saveListName, setSaveListName] = useState('')
+  const [savedLists, setSavedLists] = useState([])
+  const [listsLoading, setListsLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)
   const sugTimeout = useRef(null)
+
+  // load saved lists from Supabase on mount
+  useEffect(() => {
+    fetchSavedLists()
+      .then(setSavedLists)
+      .catch(console.warn)
+      .finally(() => setListsLoading(false))
+  }, [])
 
   useEffect(() => {
     clearTimeout(sugTimeout.current)
@@ -49,20 +61,38 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
     else if (e.key === 'Escape') setShowSug(false)
   }
 
-  const saveCurrentList = () => {
+  const saveCurrentList = async () => {
     if (!saveListName.trim() || !items.length) return
-    setSavedLists(p => [{ id: Date.now(), name: saveListName.trim(), items: [...items] }, ...p].slice(0, 10))
-    setSaveListName('')
-    setShowSaveInput(false)
+    setSaving(true)
+    try {
+      const newList = await saveList(saveListName.trim(), items)
+      setSavedLists(p => [newList, ...p].slice(0, 20))
+      setSaveListName('')
+      setShowSaveInput(false)
+    } catch (err) {
+      console.warn('Save failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteList = async (e, id) => {
+    e.stopPropagation()
+    try {
+      await deleteList(id)
+      setSavedLists(p => p.filter(l => l.id !== id))
+    } catch (err) {
+      console.warn('Delete failed:', err)
+    }
   }
 
   return (
     <div style={s.page}>
 
-      {/* Hero section */}
+      {/* Hero */}
       <div style={s.hero}>
         <h1 style={s.heroTitle}>What are you shopping for?</h1>
-        <p style={s.heroSub}>Add items and we'll find the cleanest options near you.</p>
+        <p style={s.heroSub}>Add items and we'll find the cleanest options.</p>
       </div>
 
       {/* Search input */}
@@ -86,17 +116,16 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
           )}
         </div>
 
-        {/* Autocomplete dropdown */}
         {showSug && (
           <div style={s.suggestions}>
-            {suggestions.map((s2, i) => (
+            {suggestions.map((sug, i) => (
               <button
-                key={s2}
+                key={sug}
                 style={{ ...s.suggestion, ...(i === activeSug ? s.suggestionActive : {}) }}
-                onMouseDown={() => addItem(s2)}
+                onMouseDown={() => addItem(sug)}
               >
                 <span style={s.sugIcon}>🔍</span>
-                {s2}
+                {sug}
               </button>
             ))}
           </div>
@@ -115,7 +144,7 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
         </div>
       )}
 
-      {/* Try these examples */}
+      {/* Examples */}
       {items.length === 0 && (
         <div style={s.examplesSection}>
           <p style={s.examplesLabel}>Try these</p>
@@ -127,10 +156,9 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
         </div>
       )}
 
-      {/* Error */}
       {error && <div style={s.errorBox}>⚠️ {error}</div>}
 
-      {/* CTA button */}
+      {/* CTA */}
       {items.length > 0 && (
         <div style={s.ctaSection}>
           <button
@@ -139,20 +167,15 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
             disabled={loading}
           >
             {loading ? (
-              <span style={s.ctaBtnInner}>
-                <span style={s.ctaSpinner} />
-                Finding clean picks…
-              </span>
+              <span style={s.ctaBtnInner}><span style={s.ctaSpinner} />Finding clean picks…</span>
             ) : (
-              <span style={s.ctaBtnInner}>
-                Find clean picks for {items.length} item{items.length !== 1 ? 's' : ''}  →
-              </span>
+              <span style={s.ctaBtnInner}>Find clean picks for {items.length} item{items.length !== 1 ? 's' : ''} →</span>
             )}
           </button>
 
           <div style={s.saveRow}>
             {!showSaveInput ? (
-              <button style={s.saveLinkBtn} onClick={() => setShowSaveInput(true)}>Save this list</button>
+              <button style={s.saveLinkBtn} onClick={() => setShowSaveInput(true)}>💾 Save this list</button>
             ) : (
               <div style={s.saveInputRow}>
                 <input
@@ -163,7 +186,9 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
                   onKeyDown={e => e.key === 'Enter' && saveCurrentList()}
                   autoFocus
                 />
-                <button style={s.saveConfirmBtn} onClick={saveCurrentList}>Save</button>
+                <button style={s.saveConfirmBtn} onClick={saveCurrentList} disabled={saving}>
+                  {saving ? '…' : 'Save'}
+                </button>
                 <button style={s.saveCancelBtn} onClick={() => setShowSaveInput(false)}>✕</button>
               </div>
             )}
@@ -172,17 +197,33 @@ export default function GroceryList({ savedLists, setSavedLists, onSearch, loadi
       )}
 
       {/* Saved lists */}
-      {savedLists.length > 0 && (
+      {!listsLoading && savedLists.length > 0 && (
         <div style={s.savedSection}>
           <p style={s.savedLabel}>Saved lists</p>
           <div style={s.savedScroll}>
             {savedLists.map(list => (
               <button key={list.id} style={s.savedCard} onClick={() => setItems(list.items)}>
-                <div style={s.savedCardName}>{list.name}</div>
+                <div style={s.savedCardHeader}>
+                  <div style={s.savedCardName}>{list.name}</div>
+                  <button
+                    style={s.deleteBtn}
+                    onClick={(e) => handleDeleteList(e, list.id)}
+                    title="Delete list"
+                  >×</button>
+                </div>
                 <div style={s.savedCardCount}>{list.items.length} items</div>
                 <div style={s.savedCardItems}>{list.items.slice(0, 3).join(', ')}{list.items.length > 3 ? '…' : ''}</div>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {listsLoading && (
+        <div style={s.savedSection}>
+          <p style={s.savedLabel}>Saved lists</p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[1,2].map(i => <div key={i} style={s.skeletonCard} />)}
           </div>
         </div>
       )}
@@ -199,7 +240,7 @@ const s = {
   inputRow: { display: 'flex', alignItems: 'center', background: '#fff', border: '1.5px solid #E0DDD8', borderRadius: 14, padding: '4px 8px 4px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', gap: 8 },
   searchIcon: { fontSize: 16, flexShrink: 0, opacity: 0.5 },
   input: { flex: 1, border: 'none', outline: 'none', fontSize: 16, background: 'transparent', padding: '10px 0', color: '#111', minWidth: 0 },
-  addBtn: { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' },
+  addBtn: { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', flexShrink: 0 },
   suggestions: { position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', zIndex: 100 },
   suggestion: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: '#111', textAlign: 'left' },
   suggestionActive: { background: '#F0F7F1' },
@@ -218,7 +259,7 @@ const s = {
   ctaBtnInner: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 },
   ctaSpinner: { width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.3)', borderTop: '2.5px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' },
   saveRow: { marginTop: 10, display: 'flex', justifyContent: 'center' },
-  saveLinkBtn: { background: 'none', border: 'none', fontSize: 13, color: '#888', cursor: 'pointer', textDecoration: 'underline', padding: '6px 0' },
+  saveLinkBtn: { background: 'none', border: 'none', fontSize: 13, color: '#888', cursor: 'pointer', padding: '6px 0' },
   saveInputRow: { display: 'flex', gap: 8, width: '100%' },
   saveInput: { flex: 1, border: '1.5px solid #E0DDD8', borderRadius: 10, padding: '9px 12px', fontSize: 14, outline: 'none', background: '#fff' },
   saveConfirmBtn: { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
@@ -227,7 +268,10 @@ const s = {
   savedLabel: { fontSize: 12, fontWeight: 700, color: '#AAA', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px' },
   savedScroll: { display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 },
   savedCard: { flexShrink: 0, width: 160, background: '#fff', border: '1.5px solid #EBEBEB', borderRadius: 14, padding: '14px', textAlign: 'left', cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' },
-  savedCardName: { fontSize: 14, fontWeight: 700, color: '#111', marginBottom: 3 },
+  savedCardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3 },
+  savedCardName: { fontSize: 14, fontWeight: 700, color: '#111', flex: 1, marginRight: 4 },
   savedCardCount: { fontSize: 12, color: '#1B5E20', fontWeight: 600, marginBottom: 5 },
   savedCardItems: { fontSize: 12, color: '#AAA', lineHeight: 1.4 },
+  deleteBtn: { background: 'none', border: 'none', fontSize: 16, color: '#CCC', cursor: 'pointer', padding: '0 0 0 4px', lineHeight: 1, flexShrink: 0 },
+  skeletonCard: { flexShrink: 0, width: 160, height: 90, background: '#E8E6E3', borderRadius: 14, animation: 'pulse 1.5s ease-in-out infinite' },
 }

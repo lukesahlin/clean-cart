@@ -59,10 +59,39 @@ const CATEGORY_INFO = {
     alwaysOn: false,
     section: 'dietary',
   },
+  vegan: {
+    label: 'Vegan',
+    description: 'Flags all animal products: meat, dairy, eggs, honey, gelatin, and more.',
+    emoji: '🌱',
+    alwaysOn: false,
+    section: 'diet',
+  },
+  vegetarian: {
+    label: 'Vegetarian',
+    description: 'Flags meat, fish, gelatin, lard, and other non-vegetarian ingredients.',
+    emoji: '🥗',
+    alwaysOn: false,
+    section: 'diet',
+  },
+  keto: {
+    label: 'Keto-friendly',
+    description: 'Flags sugar, corn syrup, maltodextrin, wheat flour, and starchy ingredients.',
+    emoji: '🥩',
+    alwaysOn: false,
+    section: 'diet',
+  },
+  paleo: {
+    label: 'Paleo',
+    description: 'Flags grains, legumes, dairy, refined sugars, and seed oils.',
+    emoji: '🦴',
+    alwaysOn: false,
+    section: 'diet',
+  },
 }
 
 const CLEAN_CATS    = Object.keys(CATEGORY_INFO).filter(k => CATEGORY_INFO[k].section === 'clean')
 const DIETARY_CATS  = Object.keys(CATEGORY_INFO).filter(k => CATEGORY_INFO[k].section === 'dietary')
+const DIET_CATS     = Object.keys(CATEGORY_INFO).filter(k => CATEGORY_INFO[k].section === 'diet')
 
 function FilterRow({ cat, isOn, isFixed, toggle }) {
   const info = CATEGORY_INFO[cat] || { label: cat.replace(/_/g, ' '), emoji: '⚠️', alwaysOn: false, description: '' }
@@ -129,6 +158,14 @@ export default function Settings({ avoidList, setAvoidList, onClose, onSignOut }
             isFixed={false}
             toggle={toggle}
           />
+        ))}
+      </div>
+
+      <div style={s.section}>
+        <p style={s.sectionLabel}>Diet style</p>
+        <p style={s.sectionNote}>Flag ingredients that don't fit your diet.</p>
+        {DIET_CATS.map(cat => (
+          <FilterRow key={cat} cat={cat} isOn={avoidList.includes(cat)} isFixed={false} toggle={toggle} />
         ))}
       </div>
 
