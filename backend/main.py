@@ -189,6 +189,20 @@ class AvailabilityResultResponse(BaseModel):
     source_url: str
     from_cache: bool = False
 
+class InstacartSearchRequest(BaseModel):
+    query: str
+    zip_code: str = "99201"
+    avoid: list[str] = []
+
+class ShopRequest(BaseModel):
+    query: str                  # e.g. "tortilla chips"
+    lat: float                  # user's latitude
+    lng: float                  # user's longitude
+    zip_code: str = "99201"
+    radius_meters: int = 8000   # store search radius
+    avoid: list[str] = []       # filter categories to flag
+    top_n: int = 5              # max products per store
+
 # -- Routes -------------------------------------------------------------------
 
 @app.get("/health")
@@ -197,6 +211,187 @@ def health_check():
         "status": "ok",
         "adapters_loaded": list(ADAPTERS.keys()),
         "search_cache": search_cache_stats(),
+    }
+
+
+@app.post("/shop")
+async def shop(request: ShopRequest):
+    """
+    The core store-first search endpoint.
+
+    Flow:
+      1. Find nearby stores via Google Places API (lat/lng + radius)
+      2. For each unique chain found, search that store's API for the query
+      3. Pull real ingredient data from the store's product records
+      4. Run each product through the filter engine
+      5. Score each product
+      6. Return results grouped by store, sorted by score
+    """
+    from filter_engine import analyze_off_product
+    from scoring_engine import score_product
+    from adapters.kroger import search_products_at_store as kroger_search
+    from adapters.walmart import search_walmart
+
+    loop = asyncio.get_event_loop()
+
+    # step 1 — find nearby stores
+    nearby_result = await loop.run_in_executor(
+        None, find_nearby_stores, request.lat, request.lng, request.radius_meters
+    )
+    stores, _ = nearby_result if isinstance(nearby_result, tuple) else (nearby_result, {})
+
+    # step 2 — group stores by chain so we search each chain once
+    chains_seen = {}
+    for store in stores:
+        cid = store.chain_id
+        if cid not in chains_seen:
+            chains_seen[cid] = store
+
+    def _filter_and_score(products: list[dict], chain_id: str, store) -> list[dict]:
+        """Run filter + scoring on a list of raw product dicts from a store API."""
+        results = []
+        for p in products:
+            ingredient_text = p.get("ingredient_text", "")
+            if ingredient_text:
+                off_dict = {
+                    "ingredients_text": ingredient_text,
+                    "ingredients_tags": [],
+                    "additives_tags": [],
+                    "ingredients_analysis_tags": [],
+                }
+                filter_result = analyze_off_product(off_dict, user_avoid=request.avoid)
+                product_meta = {
+                    "is_organic": "organic" in ingredient_text.lower(),
+                    "nutriscore": "",
+                    "nova_group": None,
+                    "ingredient_text": ingredient_text,
+                    "additives_tags": [],
+                }
+                hs = score_product(filter_result, product_meta)
+                health_score = hs.to_dict()
+            else:
+                filter_result = None
+                health_score = None
+
+            results.append({
+                **p,
+                "filter_result": filter_result,
+                "health_score": health_score,
+            })
+
+        # sort: clean first, then by health score desc
+        results.sort(key=lambda x: (
+            not (x.get("filter_result") or {}).get("is_clean", True),
+            -(x.get("health_score") or {}).get("score", 0),
+        ))
+        return results[:request.top_n]
+
+    # step 3 — search each chain
+    store_results = []
+
+    async def search_chain(chain_id: str, store):
+        products = []
+
+        if chain_id == "kroger":
+            name_lower = store.name.lower()
+            if "qfc" in name_lower or "quality food" in name_lower:
+                banner = "QFC"
+            elif "fred meyer" in name_lower:
+                banner = "Fred Meyer"
+            else:
+                banner = "Fred Meyer"
+            products = await loop.run_in_executor(
+                None, kroger_search, request.query, request.zip_code, banner, request.top_n
+            )
+
+        elif chain_id == "walmart":
+            raw = await loop.run_in_executor(
+                None, search_walmart, request.query, request.zip_code, store.place_id
+            )
+            products = raw
+
+        if not products:
+            return
+
+        scored = _filter_and_score(products, chain_id, store)
+        if scored:
+            store_results.append({
+                "store_name": store.name,
+                "chain_id": chain_id,
+                "address": store.address,
+                "lat": store.lat,
+                "lng": store.lng,
+                "distance_meters": store.distance_meters,
+                "products": scored,
+            })
+
+    await asyncio.gather(*[search_chain(cid, store) for cid, store in chains_seen.items()])
+
+    # sort stores by distance
+    store_results.sort(key=lambda s: s["distance_meters"])
+
+    return {
+        "query": request.query,
+        "stores_searched": len(chains_seen),
+        "stores_with_results": len(store_results),
+        "results": store_results,
+    }
+
+
+@app.post("/instacart/search")
+async def instacart_search(request: InstacartSearchRequest):
+    """
+    Search Instacart for a product using Playwright.
+    Intercepts Instacart's internal API responses to get structured product data.
+    Results are cached for 6 hours. First call may take 20-30 seconds.
+    """
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="query cannot be empty")
+
+    from adapters.instacart import search_instacart_sync
+    from filter_engine import analyze_off_product
+    from scoring_engine import score_product
+
+    loop = asyncio.get_event_loop()
+    raw_results = await loop.run_in_executor(
+        None, search_instacart_sync, request.query.strip(), request.zip_code
+    )
+
+    # run each product through the filter engine if we have ingredient text
+    enriched = []
+    for p in raw_results:
+        filter_result = None
+        health_score = None
+
+        if p.get("ingredient_text"):
+            off_dict = {
+                "ingredients_text": p["ingredient_text"],
+                "ingredients_tags": [],
+                "additives_tags": [],
+                "ingredients_analysis_tags": [],
+            }
+            filter_result = analyze_off_product(off_dict, user_avoid=request.avoid)
+            product_meta = {
+                "is_organic": "organic" in p["ingredient_text"].lower(),
+                "nutriscore": "",
+                "nova_group": None,
+                "ingredient_text": p["ingredient_text"],
+                "additives_tags": [],
+            }
+            hs = score_product(filter_result, product_meta)
+            health_score = hs.to_dict()
+
+        enriched.append({
+            **p,
+            "filter_result": filter_result,
+            "health_score": health_score,
+        })
+
+    return {
+        "query": request.query,
+        "results": enriched,
+        "total": len(enriched),
+        "from_cache": len(raw_results) > 0,
     }
 
 

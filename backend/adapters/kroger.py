@@ -136,6 +136,89 @@ def _search_products(query: str, location_id: str) -> list[dict]:
     return resp.json().get("data", [])
 
 
+# -- Store product search (returns multiple results for shop endpoint) --------
+
+def search_products_at_store(query: str, zip_code: str, banner: str = "Fred Meyer", limit: int = 10) -> list[dict]:
+    """
+    Search Kroger products at the nearest store of the given banner near zip_code.
+    Returns a list of dicts with product name, brand, price, ingredients, image, etc.
+    Used by the /shop endpoint to get store-sourced product data.
+    """
+    try:
+        location_id = _find_kroger_location_id(zip_code, banner)
+        if not location_id:
+            return []
+
+        token = _get_token()
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        params = {
+            "filter.term": query,
+            "filter.locationId": location_id,
+            "filter.fulfillment": "csp",
+            "filter.limit": limit,
+        }
+        resp = httpx.get(PRODUCTS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return []
+
+        products = resp.json().get("data", [])
+        results = []
+        for p in products:
+            # extract price
+            items = p.get("items", [{}])
+            item = items[0] if items else {}
+            price_info = item.get("price", {})
+            price = price_info.get("promo") or price_info.get("regular")
+            in_store = item.get("fulfillment", {}).get("csp", False) or item.get("fulfillment", {}).get("instore", False)
+
+            # extract ingredients — Kroger includes this in description.ingredients
+            description = p.get("description", {}) if isinstance(p.get("description"), dict) else {}
+            ingredient_text = (
+                description.get("ingredients", "")
+                or p.get("ingredients", "")
+                or ""
+            ).strip()
+
+            image_url = ""
+            images = p.get("images", [])
+            for img in images:
+                if img.get("perspective") == "front":
+                    sizes = img.get("sizes", [])
+                    for sz in sizes:
+                        if sz.get("size") == "medium":
+                            image_url = sz.get("url", "")
+                            break
+                if image_url:
+                    break
+            if not image_url and images:
+                sizes = images[0].get("sizes", [])
+                if sizes:
+                    image_url = sizes[0].get("url", "")
+
+            results.append({
+                "product_id": p.get("productId", ""),
+                "product_name": p.get("description", "") if isinstance(p.get("description"), str) else p.get("brand", "") + " " + p.get("description", {}).get("short", ""),
+                "brand": p.get("brand", ""),
+                "image_url": image_url,
+                "price": float(price) if price else None,
+                "price_str": f"${float(price):.2f}" if price else "",
+                "in_stock": bool(in_store),
+                "size": item.get("size", ""),
+                "ingredient_text": ingredient_text,
+                "store_banner": banner,
+                "zip_code": zip_code,
+                "location_id": location_id,
+                "source_url": f"https://www.kroger.com/p/{p.get('productId', '')}",
+                "chain_id": "kroger",
+            })
+        return results
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Kroger search error ({banner}): {e}")
+        return []
+
+
 # -- Public function ----------------------------------------------------------
 
 def check_availability(product_query: str, store_branch_id: str, store_name: str, zip_code: str = "99201") -> AvailabilityResult:

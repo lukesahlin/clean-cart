@@ -6,6 +6,7 @@ import ProductDetail from './components/ProductDetail.jsx'
 import Settings from './components/Settings.jsx'
 import BarcodeScanner from './components/BarcodeScanner.jsx'
 import AuthScreen from './components/AuthScreen.jsx'
+import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { fetchRecommendations } from './api.js'
@@ -62,6 +63,7 @@ export default function App() {
 
   const mainContent = () => {
     if (tab === 'scan') return <BarcodeScanner avoidList={avoidList} onClose={() => setTab('list')} onProductFound={handleScannedProduct} embedded />
+    if (tab === 'instacart') return <InstacartSearch avoidList={avoidList} />
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && results) {
@@ -94,6 +96,7 @@ export default function App() {
       <nav style={s.tabBar}>
         <TabBtn icon="🛒" label="List" active={tab === 'list'} onClick={() => handleTabChange('list')} />
         <TabBtn icon={<BarcodeIcon />} label="Scan" active={tab === 'scan'} onClick={() => handleTabChange('scan')} accent />
+        <TabBtn icon="🟢" label="Instacart" active={tab === 'instacart'} onClick={() => handleTabChange('instacart')} />
         <TabBtn icon="⚙️" label="Settings" active={tab === 'settings'} onClick={() => handleTabChange('settings')} />
       </nav>
 

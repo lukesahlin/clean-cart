@@ -74,6 +74,29 @@ export function requestGeolocation() {
   })
 }
 
+export async function shopAtStores({ query, lat, lng, zip_code = '99201', radius_meters = 8000, avoid = [], top_n = 5 }) {
+  const res = await fetch(`${BASE}/shop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, lat, lng, zip_code, radius_meters, avoid, top_n }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Store search failed')
+  }
+  return res.json()
+}
+
+export async function searchInstacart({ query, zip_code = '99201', avoid = [] }) {
+  const res = await fetch(`${BASE}/instacart/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, zip_code, avoid }),
+  })
+  if (!res.ok) return { results: [], total: 0 }
+  return res.json()
+}
+
 export async function fetchProductByBarcode(barcode, avoid = []) {
   const avoidParam = avoid.length ? `?avoid=${avoid.join(',')}` : ''
   const res = await fetch(`${BASE}/product/barcode/${barcode}${avoidParam}`)
