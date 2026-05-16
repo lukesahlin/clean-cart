@@ -10,6 +10,7 @@ import { fetchNearbyStores } from '../api.js'
 // ── Design helpers ────────────────────────────────────────────────────────────
 
 function gradeColor(score) {
+  if (score < 0) return { bg: '#9E9E9E', light: '#F5F5F5', text: '#fff' }
   if (score >= 85) return { bg: '#1B5E20', light: '#E8F5E9', text: '#fff' }
   if (score >= 70) return { bg: '#388E3C', light: '#F1F8E9', text: '#fff' }
   if (score >= 50) return { bg: '#F57F17', light: '#FFF8E1', text: '#fff' }
@@ -219,7 +220,7 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
         <div style={s.emptyBanner}>
           <div style={s.emptyIcon}>🏪</div>
           <div style={s.emptyTitle}>No store results yet</div>
-          <div style={s.emptyText}>Make sure Kroger API credentials are configured on the backend, or try expanding your search radius.</div>
+          <div style={s.emptyText}>No stores found near your location. Try expanding the search radius on the map above.</div>
         </div>
       )}
 
@@ -243,7 +244,7 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
         <AllStoresCard route={route} />
       )}
 
-      <p style={s.footer}>Ingredient data from store APIs. Always verify the label in-store.</p>
+      <p style={s.footer}>Ingredient data from store APIs and Open Food Facts. Always verify the label in-store.</p>
     </div>
   )
 }
@@ -301,7 +302,7 @@ function ItemSection({ item, data, loading, error, expanded, onToggle, expandedP
       allProducts.push({ ...p, _store: storeResult })
     }
   }
-  const cleanCount = allProducts.filter(p => p.filter_result?.is_clean !== false).length
+  const cleanCount = allProducts.filter(p => p.filter_result?.is_clean !== false && !p.filter_result?.ingredients_unknown).length
 
   // show top 2 products collapsed, all when expanded
   const displayProducts = expanded ? allProducts : allProducts.slice(0, 2)
@@ -339,15 +340,18 @@ function ItemSection({ item, data, loading, error, expanded, onToggle, expandedP
 function ProductRow({ product, isExpanded, onToggle }) {
   const hs = product.health_score
   const fr = product.filter_result
+  const ingredientsUnknown = fr?.ingredients_unknown === true
   const isClean = fr ? fr.is_clean !== false : null
   const score = hs?.score ?? null
-  const col = score !== null
-    ? gradeColor(score)
-    : isClean === true
-      ? { bg: '#4CAF50', light: '#E8F5E9', text: '#fff' }
-      : isClean === false
-        ? { bg: '#EF5350', light: '#FFEBEE', text: '#fff' }
-        : { bg: '#CCC', light: '#F5F5F5', text: '#fff' }
+  const col = ingredientsUnknown
+    ? { bg: '#9E9E9E', light: '#F5F5F5', text: '#fff' }
+    : score !== null && score >= 0
+      ? gradeColor(score)
+      : isClean === true
+        ? { bg: '#4CAF50', light: '#E8F5E9', text: '#fff' }
+        : isClean === false
+          ? { bg: '#EF5350', light: '#FFEBEE', text: '#fff' }
+          : { bg: '#CCC', light: '#F5F5F5', text: '#fff' }
 
   const flagged = fr?.flagged || []
   const ingNum = ingCount(product.ingredient_text)
@@ -389,15 +393,23 @@ function ProductRow({ product, isExpanded, onToggle }) {
               {flagged.length > 2 && <span style={s.flagChipMore}>+{flagged.length - 2}</span>}
             </div>
           )}
-          {flagged.length === 0 && isClean === true && (
+          {flagged.length === 0 && isClean === true && !ingredientsUnknown && (
             <div style={s.cleanRow}>✓ No harmful ingredients found</div>
+          )}
+          {ingredientsUnknown && (
+            <div style={s.unknownRow}>📷 Scan barcode to check ingredients</div>
           )}
         </div>
 
         {/* Score + price */}
         <div style={s.cardRight}>
           <div style={{ ...s.scoreBox, background: col.bg }}>
-            {score !== null ? (
+            {ingredientsUnknown ? (
+              <>
+                <span style={{ fontSize: 16 }}>📷</span>
+                <span style={s.scoreGrade}>scan</span>
+              </>
+            ) : score !== null && score >= 0 ? (
               <>
                 <span style={s.scoreNum}>{score}</span>
                 <span style={s.scoreGrade}>{hs.grade?.slice(0, 2)}</span>
@@ -418,7 +430,16 @@ function ProductRow({ product, isExpanded, onToggle }) {
       {isExpanded && (
         <div style={s.expandedPanel}>
           {/* Why this is clean/flagged */}
-          {isClean === true && flagged.length === 0 && (
+          {ingredientsUnknown && (
+            <div style={{ ...s.expandedClean, background: '#F5F5F5' }}>
+              <span style={s.expandedCleanIcon}>📷</span>
+              <div>
+                <div style={{ ...s.expandedCleanTitle, color: '#555' }}>Ingredients not available online</div>
+                <div style={{ ...s.expandedCleanSub, color: '#888' }}>This product is available at the store but ingredient data isn't in our database yet. Use the Scan tab to check the barcode in-store.</div>
+              </div>
+            </div>
+          )}
+          {isClean === true && flagged.length === 0 && !ingredientsUnknown && (
             <div style={s.expandedClean}>
               <span style={s.expandedCleanIcon}>✓</span>
               <div>
@@ -578,6 +599,7 @@ const s = {
   flagChip: { fontSize: 10, fontWeight: 700, color: '#B71C1C', background: '#FFEBEE', borderRadius: 8, padding: '2px 6px' },
   flagChipMore: { fontSize: 10, fontWeight: 700, color: '#888', background: '#F5F5F5', borderRadius: 8, padding: '2px 6px' },
   cleanRow: { fontSize: 11, color: '#1B5E20', fontWeight: 600, marginTop: 2 },
+  unknownRow: { fontSize: 11, color: '#888', fontWeight: 600, marginTop: 2 },
   cardRight: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 },
   scoreBox: { width: 52, height: 52, borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 },
   scoreNum: { fontSize: 18, fontWeight: 900, color: '#fff', lineHeight: 1 },

@@ -340,6 +340,7 @@ async def shop(request: ShopRequest):
     from scoring_engine import score_product
     from adapters.kroger import search_products_at_store as kroger_search
     from adapters.walmart import search_walmart
+    from product_matcher import fetch_products_for_item
 
     loop = asyncio.get_event_loop()
 
@@ -395,23 +396,34 @@ async def shop(request: ShopRequest):
             if ingredient_text:
                 off_dict = {
                     "ingredients_text": ingredient_text,
-                    "ingredients_tags": [],
-                    "additives_tags": [],
-                    "ingredients_analysis_tags": [],
+                    "ingredients_tags": p.get("ingredients_tags", []) or [],
+                    "additives_tags": p.get("additives_tags", []) or [],
+                    "ingredients_analysis_tags": p.get("ingredients_analysis_tags", []) or [],
                 }
                 filter_result = analyze_off_product(off_dict, user_avoid=request.avoid)
                 product_meta = {
                     "is_organic": "organic" in ingredient_text.lower(),
-                    "nutriscore": "",
-                    "nova_group": None,
+                    "nutriscore": p.get("nutriscore", ""),
+                    "nova_group": p.get("nova_group"),
                     "ingredient_text": ingredient_text,
-                    "additives_tags": [],
+                    "additives_tags": p.get("additives_tags", []) or [],
                 }
                 hs = score_product(filter_result, product_meta)
                 health_score = hs.to_dict()
             else:
-                filter_result = None
-                health_score = None
+                filter_result = {
+                    "is_clean": True,
+                    "flagged": [],
+                    "checked_categories": [],
+                    "ingredients_unknown": True,
+                }
+                health_score = {
+                    "score": -1,
+                    "grade": "unknown",
+                    "warnings": ["Ingredient data not available — scan barcode in store"],
+                    "positives": [],
+                    "breakdown": {},
+                }
 
             results.append({
                 **p,
@@ -419,8 +431,9 @@ async def shop(request: ShopRequest):
                 "health_score": health_score,
             })
 
-        # sort: clean first, then by health score desc
+        # sort: known ingredients first, then clean before flagged, then by score desc
         results.sort(key=lambda x: (
+            (x.get("filter_result") or {}).get("ingredients_unknown", False),
             not (x.get("filter_result") or {}).get("is_clean", True),
             -(x.get("health_score") or {}).get("score", 0),
         ))
@@ -452,6 +465,19 @@ async def shop(request: ShopRequest):
             )
             products = raw
 
+        else:
+            # For chains without a direct product API (Safeway, Whole Foods, Trader Joe's,
+            # PCC, WinCo, etc.) we search Open Food Facts instead.
+            # The store was found nearby so it's a real location; OFF gives us real
+            # ingredient data so the filter engine can still tell the user what's clean.
+            raw_products = await loop.run_in_executor(
+                None, fetch_products_for_item, request.query
+            )
+            products = [
+                {**p.to_dict(), "source": "open_food_facts", "in_stock": True}
+                for p in raw_products
+            ]
+
         if not products:
             return
 
@@ -469,8 +495,8 @@ async def shop(request: ShopRequest):
 
     await asyncio.gather(*[search_chain(cid, store) for cid, store in chains_seen.items()])
 
-    # sort stores by distance
-    store_results.sort(key=lambda s: s["distance_meters"])
+    # sort stores by distance (None = fallback stores go last)
+    store_results.sort(key=lambda s: s["distance_meters"] if s["distance_meters"] is not None else 999999)
 
     return {
         "query": request.query,
