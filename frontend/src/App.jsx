@@ -11,7 +11,6 @@ import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { shopAtStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
 
-const DEFAULT_ZIP = '99201'   // Spokane fallback when GPS is unavailable
 
 export default function App() {
   const { user, loading, signOut } = useAuth()
@@ -32,16 +31,14 @@ export default function App() {
     try {
       const loc = await requestGeolocation()
       const geo = await reverseGeocode(loc.lat, loc.lng).catch(() => ({}))
-      const zip = geo.zip_code || DEFAULT_ZIP
-      const label = geo.city ? `${geo.city}, ${geo.state || ''}`.trim().replace(/,$/, '') : zip
+      const zip = geo.zip_code || ''
+      const label = geo.city ? `${geo.city}, ${geo.state || ''}`.trim().replace(/,$/, '') : 'Current location'
       const resolved = { lat: loc.lat, lng: loc.lng, zip, label }
       setLocation(resolved)
       return resolved
     } catch {
-      // GPS denied or unavailable — use Spokane default
-      const fallback = { lat: 47.6588, lng: -117.4260, zip: DEFAULT_ZIP, label: 'Spokane, WA (default)' }
-      setLocation(fallback)
-      return fallback
+      // GPS denied — return null so the UI can prompt the user to enter a location
+      return null
     }
   }, [location])
 
@@ -57,6 +54,15 @@ export default function App() {
     setScreen('results')
 
     const loc = overrideLocation || await resolveLocation()
+
+    // if location couldn't be determined, stop and ask the user to set it
+    if (!loc) {
+      setIsLoading(false)
+      setShopResults(null)
+      setScreen('list')
+      setError('📍 Please set your location first — tap the location bar above.')
+      return
+    }
 
     // fire one /shop call per item concurrently, update state as each resolves
     await Promise.all(items.map(async (item, idx) => {
@@ -115,7 +121,7 @@ export default function App() {
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && shopResults) {
-        return <ShopResults shopResults={shopResults} location={location} onLocationChange={handleLocationChange} onBack={() => setScreen('list')} />
+        return <ShopResults shopResults={shopResults} location={location} onLocationChange={handleLocationChange} onReSearch={(newLoc) => handleSearch(currentItems, newLoc)} onBack={() => { setScreen('list'); setShopResults(null) }} />
       }
       return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} location={location} onLocationChange={handleLocationChange} />
     }

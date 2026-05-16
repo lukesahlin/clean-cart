@@ -2,8 +2,10 @@
 // Displays products from nearby stores (Kroger/Walmart) filtered and scored.
 // shopResults shape: [{ item: string, data: { query, stores_searched, stores_with_results, results: [...] } }]
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import LocationBar from './LocationBar.jsx'
+import StoreMap from './StoreMap.jsx'
+import { fetchNearbyStores } from '../api.js'
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -106,14 +108,41 @@ function buildRoute(shopResults) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ShopResults({ shopResults, location, onLocationChange, onBack }) {
+export default function ShopResults({ shopResults, location, onLocationChange, onReSearch, onBack }) {
   const [expandedItem, setExpandedItem] = useState(null)
   const [expandedProduct, setExpandedProduct] = useState(null)
+  const [nearbyStores, setNearbyStores] = useState([])
+  const [mapSearching, setMapSearching] = useState(false)
+  const [radiusMeters, setRadiusMeters] = useState(8000)
 
   const summary = buildSummary(shopResults)
   const route = buildRoute(shopResults)
   const bestStore = route[0]
   const isLoading = shopResults.some(r => r.loading)
+
+  // fetch nearby stores whenever location changes
+  useEffect(() => {
+    if (!location?.lat) return
+    fetchNearbyStores(location.lat, location.lng, radiusMeters)
+      .then(data => setNearbyStores(data.stores || []))
+      .catch(() => setNearbyStores([]))
+  }, [location?.lat, location?.lng, radiusMeters]) // eslint-disable-line
+
+  // called by StoreMap when user clicks "Search X mi radius" or changes location
+  const handleMapSearch = useCallback(async (newRadiusMeters, overrideLoc = null) => {
+    setRadiusMeters(newRadiusMeters)
+    const loc = overrideLoc || location
+    if (!loc) return
+    setMapSearching(true)
+    try {
+      const data = await fetchNearbyStores(loc.lat, loc.lng, newRadiusMeters)
+      setNearbyStores(data.stores || [])
+    } catch { /* ignore */ }
+    setMapSearching(false)
+    // re-run the full product search with the new location
+    if (overrideLoc) onLocationChange(overrideLoc)
+    onReSearch(loc)
+  }, [location, onLocationChange, onReSearch])
 
   return (
     <div style={s.page}>
@@ -137,6 +166,20 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
       <div style={s.locationRow}>
         <LocationBar location={location} onLocationChange={onLocationChange} compact />
       </div>
+
+      {/* Store map — shows when we have a location */}
+      {location?.lat && (
+        <StoreMap
+          userLocation={location}
+          locationLabel={location.label}
+          stores={nearbyStores}
+          onSearch={handleMapSearch}
+          onLocationChange={(newLoc) => {
+            onLocationChange(newLoc)
+          }}
+          searching={mapSearching || isLoading}
+        />
+      )}
 
       {/* Best store card — shown when we have results */}
       {bestStore && bestStore.items.length > 0 && (

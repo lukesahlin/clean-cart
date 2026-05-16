@@ -198,7 +198,7 @@ class ShopRequest(BaseModel):
     query: str                  # e.g. "tortilla chips"
     lat: float                  # user's latitude
     lng: float                  # user's longitude
-    zip_code: str = "99201"
+    zip_code: str = ""          # derived from lat/lng on the backend if not provided
     radius_meters: int = 8000   # store search radius
     avoid: list[str] = []       # filter categories to flag
     top_n: int = 5              # max products per store
@@ -215,7 +215,7 @@ def health_check():
 
 
 @app.get("/test/kroger")
-async def test_kroger(zip_code: str = "99201", query: str = "tortilla chips"):
+async def test_kroger(zip_code: str = "", query: str = "tortilla chips"):
     """
     Kroger API credential + store discovery test.
     Searches for ALL Kroger-family stores near zip_code (no chain filter)
@@ -235,6 +235,10 @@ async def test_kroger(zip_code: str = "99201", query: str = "tortilla chips"):
 
     if not result["credentials_set"]:
         result["error"] = "KROGER_CLIENT_ID or KROGER_CLIENT_SECRET not set in environment"
+        return result
+
+    if not zip_code:
+        result["error"] = "Pass a zip code to test: /test/kroger?zip_code=98101"
         return result
 
     try:
