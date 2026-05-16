@@ -21,8 +21,7 @@ function gradeColor(score) {
 function storeEmoji(chainId) {
   const map = {
     kroger: '🟠', fred_meyer: '🟠', qfc: '🟠',
-    walmart: '🟦', safeway: '🔴', albertsons: '🔵',
-    whole_foods: '🟢', trader_joes: '🌺', instacart: '🟩',
+    walmart: '🟦',
   }
   return map[chainId] || '🏪'
 }
@@ -219,8 +218,8 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
       {summary.storeCount === 0 && !shopResults.some(r => r.loading) && (
         <div style={s.emptyBanner}>
           <div style={s.emptyIcon}>🏪</div>
-          <div style={s.emptyTitle}>No store results yet</div>
-          <div style={s.emptyText}>No stores found near your location. Try expanding the search radius on the map above.</div>
+          <div style={s.emptyTitle}>No store results</div>
+          <div style={s.emptyText}>No Fred Meyer, QFC, or Walmart found near your location. Try expanding the search radius or changing your location.</div>
         </div>
       )}
 
@@ -244,7 +243,7 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
         <AllStoresCard route={route} />
       )}
 
-      <p style={s.footer}>Ingredient data from store APIs and Open Food Facts. Always verify the label in-store.</p>
+      <p style={s.footer}>Products from Kroger & Walmart APIs. Ingredients from Open Food Facts. Always verify the label in-store.</p>
     </div>
   )
 }
@@ -290,7 +289,7 @@ function ItemSection({ item, data, loading, error, expanded, onToggle, expandedP
           <h2 style={s.itemName}>{item}</h2>
           <span style={s.noMatchPill}>No match</span>
         </div>
-        <p style={s.noMatchText}>No products found at nearby stores. Try scanning the barcode in-store.</p>
+        <p style={s.noMatchText}>Not found at nearby Fred Meyer, QFC, or Walmart. Try a different search term or scan the barcode in-store.</p>
       </div>
     )
   }

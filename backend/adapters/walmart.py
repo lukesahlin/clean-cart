@@ -18,6 +18,7 @@ import re
 import logging
 from datetime import datetime
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 
@@ -157,12 +158,66 @@ def _parse_result(item: dict, store_branch_id: str = "walmart") -> dict:
     }
 
 
+# ── OFF ingredient bridge ─────────────────────────────────────────────────────
+
+def _fetch_off_ingredients(upc: str) -> str:
+    """
+    Look up ingredient text from Open Food Facts using a UPC/barcode.
+    BlueCart's item_id maps to Walmart's UPC, which OFF indexes.
+    Returns empty string if not found.
+    """
+    if not upc or not upc.isdigit():
+        return ""
+    try:
+        url = f"https://world.openfoodfacts.org/api/v0/product/{upc}.json"
+        resp = httpx.get(url, timeout=6.0, headers={"User-Agent": "CleanCart/1.0"})
+        if resp.status_code != 200:
+            return ""
+        data = resp.json()
+        if data.get("status") != 1:
+            return ""
+        return data.get("product", {}).get("ingredients_text", "") or ""
+    except Exception:
+        return ""
+
+
+def _enrich_with_off(results: list[dict]) -> list[dict]:
+    """
+    For products missing ingredient_text, try to fetch it from OFF
+    using the product's UPC concurrently.
+    """
+    needs_lookup = [(i, r["product_id"]) for i, r in enumerate(results) if not r.get("ingredient_text")]
+    if not needs_lookup:
+        return results
+
+    ingredient_map = {}
+    with ThreadPoolExecutor(max_workers=min(len(needs_lookup), 6)) as pool:
+        futures = {pool.submit(_fetch_off_ingredients, upc): upc for _, upc in needs_lookup}
+        for future in as_completed(futures, timeout=8):
+            upc = futures[future]
+            try:
+                ingredient_map[upc] = future.result()
+            except Exception:
+                ingredient_map[upc] = ""
+
+    for idx, upc in needs_lookup:
+        text = ingredient_map.get(upc, "")
+        if text:
+            results[idx]["ingredient_text"] = text
+
+    return results
+
+
 # ── Main search ───────────────────────────────────────────────────────────────
 
 def search_walmart(query: str, zip_code: str = "99201", store_branch_id: str = "walmart") -> list[dict]:
     """
     Search Walmart products via BlueCart API.
     Returns a list of product dicts compatible with the /shop endpoint.
+
+    Flow: BlueCart gives us product name, price, availability.
+    For ingredient data we first try BlueCart's description/specs fields,
+    then fall back to Open Food Facts via UPC lookup.
     Results are cached for CACHE_TTL_HOURS hours.
     """
     cached = _get_cached(query)
@@ -182,7 +237,6 @@ def search_walmart(query: str, zip_code: str = "99201", store_branch_id: str = "
             "search_term": query,
             "sort_by":     "best_match",
         }
-        # pass zip so BlueCart can check in-store availability at the right location
         if zip_code and len(zip_code) == 5 and zip_code.isdigit():
             params["customer_zipcode"] = zip_code
 
@@ -195,6 +249,9 @@ def search_walmart(query: str, zip_code: str = "99201", store_branch_id: str = "
         data    = resp.json()
         items   = data.get("search_results") or []
         results = [_parse_result(item, store_branch_id) for item in items[:MAX_RESULTS]]
+
+        # bridge to OFF for any products missing ingredient text
+        results = _enrich_with_off(results)
 
         _set_cached(query, results)
         logger.info(f"Walmart/BlueCart: {len(results)} results for {query!r}")

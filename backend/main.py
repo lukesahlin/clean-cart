@@ -340,11 +340,10 @@ async def shop(request: ShopRequest):
     from scoring_engine import score_product
     from adapters.kroger import search_products_at_store as kroger_search
     from adapters.walmart import search_walmart
-    from product_matcher import fetch_products_for_item
 
     loop = asyncio.get_event_loop()
 
-    # step 1 — find nearby stores via Google Places
+    # step 1 — find nearby stores via Google Places (only returns chains we have APIs for)
     nearby_result = await loop.run_in_executor(
         None, find_nearby_stores, request.lat, request.lng, request.radius_meters
     )
@@ -357,36 +356,20 @@ async def shop(request: ShopRequest):
         if cid not in chains_seen:
             chains_seen[cid] = store
 
-    # fallback: if Google Places isn't configured or returned nothing,
-    # still search Kroger + Walmart using just the lat/lng coordinates
-    if not chains_seen:
-        from nearby_stores import NearbyStore
-        # derive a zip from coordinates if we don't have one
-        zip_code = request.zip_code
-        if not zip_code:
-            try:
-                import httpx as _httpx
-                geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
-                    "https://nominatim.openstreetmap.org/reverse",
-                    params={"lat": request.lat, "lon": request.lng, "format": "json"},
-                    headers={"User-Agent": "CleanCart/1.0"},
-                    timeout=6,
-                ))
-                zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
-            except Exception:
-                zip_code = ""
-
-        # create placeholder store objects so the search chain logic runs
-        chains_seen["kroger"] = NearbyStore(
-            place_id="kroger_fallback", name="Fred Meyer / QFC",
-            chain_id="kroger", address="", lat=request.lat, lng=request.lng,
-        )
-        chains_seen["walmart"] = NearbyStore(
-            place_id="walmart_fallback", name="Walmart",
-            chain_id="walmart", address="", lat=request.lat, lng=request.lng,
-        )
-        # patch zip onto the request for downstream adapters
-        request = request.model_copy(update={"zip_code": zip_code})
+    # derive zip from coordinates if needed (Kroger API requires it)
+    if not request.zip_code and chains_seen:
+        try:
+            import httpx as _httpx
+            geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"lat": request.lat, "lon": request.lng, "format": "json"},
+                headers={"User-Agent": "CleanCart/1.0"},
+                timeout=6,
+            ))
+            zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
+            request = request.model_copy(update={"zip_code": zip_code})
+        except Exception:
+            pass
 
     def _filter_and_score(products: list[dict], chain_id: str, store) -> list[dict]:
         """Run filter + scoring on a list of raw product dicts from a store API."""
@@ -439,44 +422,28 @@ async def shop(request: ShopRequest):
         ))
         return results[:request.top_n]
 
-    # step 3 — search each chain
+    # step 3 — search each chain (only kroger and walmart have real APIs)
     store_results = []
 
     async def search_chain(chain_id: str, store):
         products = []
 
         if chain_id == "kroger":
-            # pass the store name as a banner hint — the adapter will try it
-            # first then fall back to any Kroger-family store near the zip
             name_lower = store.name.lower()
             if "qfc" in name_lower or "quality food" in name_lower:
                 banner = "QFC"
             elif "fred meyer" in name_lower or "fred" in name_lower:
                 banner = "FRED"
             else:
-                banner = ""   # let the adapter find whatever's closest
+                banner = ""
             products = await loop.run_in_executor(
                 None, kroger_search, request.query, request.zip_code, banner, request.top_n
             )
 
         elif chain_id == "walmart":
-            raw = await loop.run_in_executor(
+            products = await loop.run_in_executor(
                 None, search_walmart, request.query, request.zip_code, store.place_id
             )
-            products = raw
-
-        else:
-            # For chains without a direct product API (Safeway, Whole Foods, Trader Joe's,
-            # PCC, WinCo, etc.) we search Open Food Facts instead.
-            # The store was found nearby so it's a real location; OFF gives us real
-            # ingredient data so the filter engine can still tell the user what's clean.
-            raw_products = await loop.run_in_executor(
-                None, fetch_products_for_item, request.query
-            )
-            products = [
-                {**p.to_dict(), "source": "open_food_facts", "in_stock": True}
-                for p in raw_products
-            ]
 
         if not products:
             return
@@ -493,7 +460,14 @@ async def shop(request: ShopRequest):
                 "products": scored,
             })
 
-    await asyncio.gather(*[search_chain(cid, store) for cid, store in chains_seen.items()])
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*[search_chain(cid, store) for cid, store in chains_seen.items()]),
+            timeout=25,
+        )
+    except asyncio.TimeoutError:
+        import logging
+        logging.getLogger(__name__).warning(f"Shop search timed out after 25s — returning partial results")
 
     # sort stores by distance (None = fallback stores go last)
     store_results.sort(key=lambda s: s["distance_meters"] if s["distance_meters"] is not None else 999999)

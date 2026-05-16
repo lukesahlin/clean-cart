@@ -13,37 +13,18 @@ logger = logging.getLogger(__name__)
 # How far out to search (meters). Overridden by STORE_SEARCH_RADIUS_METERS env var.
 DEFAULT_RADIUS_METERS = int(os.getenv("STORE_SEARCH_RADIUS_METERS", "8000"))
 
-# Store chains we support scrapers for. Used to filter Places results.
-# Key = normalized name fragment to match in Places result, value = our internal chain id.
-# Chains we support scrapers/APIs for.
-# Key = lowercase fragment that appears in the Google Places name.
-# Value = our internal chain_id passed to the adapter registry in main.py.
+# Only chains we have a real product-search API for.
+# The map and /shop endpoint will only show these stores — no point
+# displaying a Trader Joe's pin if we can't actually search their inventory.
 SUPPORTED_CHAINS = {
-    # National
-    "walmart":          "walmart",
-    "whole foods":      "whole_foods",
-    "trader joe":       "trader_joes",
-
-    # Kroger family — Fred Meyer, QFC both use the Kroger API adapter
+    # Kroger family — Fred Meyer, QFC, Kroger all use the Kroger Developer API
     "fred meyer":       "kroger",
     "qfc":              "kroger",
     "quality food":     "kroger",
     "kroger":           "kroger",
 
-    # Albertsons/Safeway family — same adapter
-    "safeway":          "albertsons",
-    "albertsons":       "albertsons",
-    "vons":             "albertsons",
-
-    # Pacific NW / Mountain West
-    "natural grocers":  "natural_grocers",
-    "vitamin cottage":  "natural_grocers",
-    "pcc community":    "pcc",
-    "pcc market":       "pcc",
-    "yoke":             "yokes",
-    "rosauer":          "rosauers",
-    # WinCo has no online system — we surface it but flag no adapter
-    "winco":            "winco",
+    # Walmart — via BlueCart API
+    "walmart":          "walmart",
 }
 
 GOOGLE_PLACES_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
