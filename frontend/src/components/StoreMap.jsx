@@ -17,23 +17,15 @@ L.Icon.Default.mergeOptions({
 // ── Chain colours ──────────────────────────────────────────────────────────────
 const CHAIN_COLOR = {
   walmart:     '#0071CE',
-  safeway:     '#C8102E',
-  albertsons:  '#003087',
+  kroger:      '#E07B26',
   fred_meyer:  '#E07B26',
-  whole_foods: '#00674B',
-  trader_joes: '#B5001E',
-  yokes:       '#F5A623',
-  rosauers:    '#6B2D8B',
+  qfc:         '#E07B26',
 }
 const CHAIN_LABEL = {
   walmart:     'W',
-  safeway:     'S',
-  albertsons:  'A',
+  kroger:      'K',
   fred_meyer:  'FM',
-  whole_foods: 'WF',
-  trader_joes: 'TJ',
-  yokes:       'Y',
-  rosauers:    'R',
+  qfc:         'QFC',
 }
 
 function makeStoreIcon(chainId) {
@@ -273,14 +265,16 @@ export default function StoreMap({
           </Marker>
 
           {/* Store pins */}
-          {stores.map(store => (
-            <Marker key={store.place_id} position={[store.lat, store.lng]} icon={makeStoreIcon(store.chain_id)}>
+          {stores.map((store, i) => (
+            <Marker key={store.place_id || `${store.name}-${i}`} position={[store.lat, store.lng]} icon={makeStoreIcon(store.chain_id)}>
               <Popup>
-                <strong style={{ fontSize: 13 }}>{store.name}</strong>
+                <strong style={{ fontSize: 13 }}>{store.name || store.store_name}</strong>
                 <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>{store.address}</div>
-                <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                  {metersToMiles(store.distance_meters)} mi away
-                </div>
+                {store.distance_meters != null && (
+                  <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                    {metersToMiles(store.distance_meters)} mi away
+                  </div>
+                )}
               </Popup>
             </Marker>
           ))}
@@ -301,11 +295,11 @@ export default function StoreMap({
 
       {stores.length > 0 && !searching && (
         <div style={s.storeList}>
-          {stores.slice(0, 5).map(store => (
-            <div key={store.place_id} style={s.storeRow}>
+          {stores.slice(0, 5).map((store, i) => (
+            <div key={store.place_id || `${store.name}-${i}`} style={s.storeRow}>
               <div style={{ ...s.storeDot, background: CHAIN_COLOR[store.chain_id] || '#888' }} />
-              <span style={s.storeName}>{store.name}</span>
-              <span style={s.storeDist}>{metersToMiles(store.distance_meters)} mi</span>
+              <span style={s.storeName}>{store.name || store.store_name}</span>
+              <span style={s.storeDist}>{store.distance_meters != null ? `${metersToMiles(store.distance_meters)} mi` : ''}</span>
             </div>
           ))}
           {stores.length > 5 && (

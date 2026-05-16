@@ -158,6 +158,53 @@ def _find_kroger_location_with_info(zip_code: str, chain_banner: str = "") -> di
     return locations[0] if locations else None
 
 
+def find_nearby_kroger_stores(zip_code: str = "", limit: int = 5,
+                              lat: float = 0, lng: float = 0) -> list[dict]:
+    """
+    Returns nearby Kroger-family stores as dicts with name, address, lat, lng, chain.
+    Uses the Kroger Locations API directly — doesn't need Google Places.
+    Prefers lat/lng if provided, falls back to zip code.
+    """
+    try:
+        token = _get_token()
+    except Exception:
+        return []
+
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    params = {"filter.radiusInMiles": 25, "filter.limit": limit}
+
+    if lat and lng:
+        params["filter.latLong.near"] = f"{lat},{lng}"
+    elif zip_code:
+        params["filter.zipCode.near"] = zip_code
+    else:
+        return []
+
+    try:
+        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return []
+    except Exception:
+        return []
+
+    banner_names = {"FRED": "Fred Meyer", "QFC": "QFC", "KROGER": "Kroger"}
+    results = []
+    for loc in resp.json().get("data", []):
+        addr = loc.get("address", {})
+        geo = loc.get("geolocation", {})
+        chain = loc.get("chain", "KROGER")
+        results.append({
+            "location_id": loc.get("locationId", ""),
+            "name": f"{banner_names.get(chain, chain)} — {addr.get('addressLine1', '')}",
+            "chain": chain,
+            "address": f"{addr.get('addressLine1', '')}, {addr.get('city', '')}",
+            "city": addr.get("city", ""),
+            "lat": geo.get("latitude", 0),
+            "lng": geo.get("longitude", 0),
+        })
+    return results
+
+
 # -- Product search -----------------------------------------------------------
 
 def _search_products(query: str, location_id: str) -> list[dict]:

@@ -326,38 +326,21 @@ async def test_kroger(zip_code: str = "", query: str = "tortilla chips"):
 @app.post("/shop")
 async def shop(request: ShopRequest):
     """
-    The core store-first search endpoint.
-
-    Flow:
-      1. Find nearby stores via Google Places API (lat/lng + radius)
-      2. For each unique chain found, search that store's API for the query
-      3. Pull real ingredient data from the store's product records
-      4. Run each product through the filter engine
-      5. Score each product
-      6. Return results grouped by store, sorted by score
+    Store-first search: always queries Kroger + Walmart APIs directly,
+    regardless of Google Places results. Google Places is used only to
+    supplement map pins and distances.
     """
     from filter_engine import analyze_off_product
     from scoring_engine import score_product
     from adapters.kroger import search_products_at_store as kroger_search
+    from adapters.kroger import find_nearby_kroger_stores
     from adapters.walmart import search_walmart
 
     loop = asyncio.get_event_loop()
 
-    # step 1 — find nearby stores via Google Places (only returns chains we have APIs for)
-    nearby_result = await loop.run_in_executor(
-        None, find_nearby_stores, request.lat, request.lng, request.radius_meters
-    )
-    stores, debug = nearby_result if isinstance(nearby_result, tuple) else (nearby_result, {})
-
-    # step 2 — group stores by chain so we search each chain once
-    chains_seen = {}
-    for store in stores:
-        cid = store.chain_id
-        if cid not in chains_seen:
-            chains_seen[cid] = store
-
-    # derive zip from coordinates if needed (Kroger API requires it)
-    if not request.zip_code and chains_seen:
+    # derive zip from coordinates (Kroger API needs it)
+    zip_code = request.zip_code
+    if not zip_code:
         try:
             import httpx as _httpx
             geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
@@ -367,12 +350,15 @@ async def shop(request: ShopRequest):
                 timeout=6,
             ))
             zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
-            request = request.model_copy(update={"zip_code": zip_code})
         except Exception:
             pass
 
-    def _filter_and_score(products: list[dict], chain_id: str, store) -> list[dict]:
-        """Run filter + scoring on a list of raw product dicts from a store API."""
+    if not zip_code:
+        return {"query": request.query, "stores_searched": 0,
+                "stores_with_results": 0, "results": [],
+                "error": "Could not determine zip code from coordinates"}
+
+    def _filter_and_score(products: list[dict]) -> list[dict]:
         results = []
         for p in products:
             ingredient_text = p.get("ingredient_text", "")
@@ -395,26 +381,17 @@ async def shop(request: ShopRequest):
                 health_score = hs.to_dict()
             else:
                 filter_result = {
-                    "is_clean": True,
-                    "flagged": [],
-                    "checked_categories": [],
+                    "is_clean": True, "flagged": [], "checked_categories": [],
                     "ingredients_unknown": True,
                 }
                 health_score = {
-                    "score": -1,
-                    "grade": "unknown",
+                    "score": -1, "grade": "unknown",
                     "warnings": ["Ingredient data not available — scan barcode in store"],
-                    "positives": [],
-                    "breakdown": {},
+                    "positives": [], "breakdown": {},
                 }
 
-            results.append({
-                **p,
-                "filter_result": filter_result,
-                "health_score": health_score,
-            })
+            results.append({**p, "filter_result": filter_result, "health_score": health_score})
 
-        # sort: known ingredients first, then clean before flagged, then by score desc
         results.sort(key=lambda x: (
             (x.get("filter_result") or {}).get("ingredients_unknown", False),
             not (x.get("filter_result") or {}).get("is_clean", True),
@@ -422,59 +399,86 @@ async def shop(request: ShopRequest):
         ))
         return results[:request.top_n]
 
-    # step 3 — search each chain (only kroger and walmart have real APIs)
+    import math
+
+    def _haversine(lat1, lng1, lat2, lng2):
+        R = 6371000
+        p = math.pi / 180
+        a = (0.5 - math.cos((lat2 - lat1) * p) / 2 +
+             math.cos(lat1 * p) * math.cos(lat2 * p) *
+             (1 - math.cos((lng2 - lng1) * p)) / 2)
+        return R * 2 * math.asin(math.sqrt(a))
+
     store_results = []
 
-    async def search_chain(chain_id: str, store):
-        products = []
-
-        if chain_id == "kroger":
-            name_lower = store.name.lower()
-            if "qfc" in name_lower or "quality food" in name_lower:
-                banner = "QFC"
-            elif "fred meyer" in name_lower or "fred" in name_lower:
-                banner = "FRED"
-            else:
-                banner = ""
-            products = await loop.run_in_executor(
-                None, kroger_search, request.query, request.zip_code, banner, request.top_n
+    # --- Kroger: use Kroger's own Location API to find nearby stores ---
+    async def search_kroger_stores():
+        nearby_kroger = await loop.run_in_executor(
+            None, lambda: find_nearby_kroger_stores(
+                zip_code=zip_code, limit=5,
+                lat=request.lat, lng=request.lng
             )
-
-        elif chain_id == "walmart":
+        )
+        chain_id_map = {"FRED": "fred_meyer", "QFC": "qfc"}
+        banners_searched = set()
+        for kstore in nearby_kroger:
+            dist = _haversine(request.lat, request.lng, kstore["lat"], kstore["lng"])
+            if dist > request.radius_meters:
+                continue
+            banner = kstore["chain"]
+            if banner in banners_searched:
+                continue
+            banners_searched.add(banner)
             products = await loop.run_in_executor(
-                None, search_walmart, request.query, request.zip_code, store.place_id
+                None, kroger_search, request.query, zip_code, banner, request.top_n
             )
+            if not products:
+                continue
+            scored = _filter_and_score(products)
+            if scored:
+                store_results.append({
+                    "store_name": kstore["name"],
+                    "chain_id": chain_id_map.get(banner, "kroger"),
+                    "address": kstore["address"],
+                    "lat": kstore["lat"],
+                    "lng": kstore["lng"],
+                    "distance_meters": round(dist),
+                    "products": scored,
+                })
 
+    # --- Walmart: no store location needed, BlueCart searches by zip ---
+    async def search_walmart_store():
+        products = await loop.run_in_executor(
+            None, search_walmart, request.query, zip_code, ""
+        )
         if not products:
             return
-
-        scored = _filter_and_score(products, chain_id, store)
+        scored = _filter_and_score(products)
         if scored:
             store_results.append({
-                "store_name": store.name,
-                "chain_id": chain_id,
-                "address": store.address,
-                "lat": store.lat,
-                "lng": store.lng,
-                "distance_meters": store.distance_meters,
+                "store_name": "Walmart",
+                "chain_id": "walmart",
+                "address": f"Near {zip_code}",
+                "lat": request.lat,
+                "lng": request.lng,
+                "distance_meters": 0,
                 "products": scored,
             })
 
     try:
         await asyncio.wait_for(
-            asyncio.gather(*[search_chain(cid, store) for cid, store in chains_seen.items()]),
+            asyncio.gather(search_kroger_stores(), search_walmart_store()),
             timeout=25,
         )
     except asyncio.TimeoutError:
         import logging
-        logging.getLogger(__name__).warning(f"Shop search timed out after 25s — returning partial results")
+        logging.getLogger(__name__).warning("Shop search timed out after 25s — returning partial results")
 
-    # sort stores by distance (None = fallback stores go last)
-    store_results.sort(key=lambda s: s["distance_meters"] if s["distance_meters"] is not None else 999999)
+    store_results.sort(key=lambda s: s.get("distance_meters") or 999999)
 
     return {
         "query": request.query,
-        "stores_searched": len(chains_seen),
+        "stores_searched": 2,
         "stores_with_results": len(store_results),
         "results": store_results,
     }

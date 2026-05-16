@@ -5,7 +5,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import LocationBar from './LocationBar.jsx'
 import StoreMap from './StoreMap.jsx'
-import { fetchNearbyStores } from '../api.js'
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -21,7 +20,7 @@ function gradeColor(score) {
 function storeEmoji(chainId) {
   const map = {
     kroger: '🟠', fred_meyer: '🟠', qfc: '🟠',
-    walmart: '🟦',
+    walmart: '🔵',
   }
   return map[chainId] || '🏪'
 }
@@ -120,28 +119,36 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
   const bestStore = route[0]
   const isLoading = shopResults.some(r => r.loading)
 
-  // fetch nearby stores whenever location changes
+  // Build map store pins from actual search results (Kroger API provides lat/lng)
   useEffect(() => {
-    if (!location?.lat) return
-    fetchNearbyStores(location.lat, location.lng, radiusMeters)
-      .then(data => setNearbyStores(data.stores || []))
-      .catch(() => setNearbyStores([]))
-  }, [location?.lat, location?.lng, radiusMeters]) // eslint-disable-line
+    const storesFromResults = []
+    const seen = new Set()
+    for (const { data } of shopResults) {
+      for (const sr of (data?.results || [])) {
+        const key = `${sr.store_name}|${sr.lat}|${sr.lng}`
+        if (seen.has(key) || !sr.lat || !sr.lng) continue
+        seen.add(key)
+        storesFromResults.push({
+          name: sr.store_name,
+          chain_id: sr.chain_id,
+          address: sr.address,
+          lat: sr.lat,
+          lng: sr.lng,
+          distance_meters: sr.distance_meters,
+        })
+      }
+    }
+    if (storesFromResults.length > 0) setNearbyStores(storesFromResults)
+  }, [shopResults])
 
-  // called by StoreMap when user clicks "Search X mi radius" or changes location
   const handleMapSearch = useCallback(async (newRadiusMeters, overrideLoc = null) => {
     setRadiusMeters(newRadiusMeters)
     const loc = overrideLoc || location
     if (!loc) return
     setMapSearching(true)
-    try {
-      const data = await fetchNearbyStores(loc.lat, loc.lng, newRadiusMeters)
-      setNearbyStores(data.stores || [])
-    } catch { /* ignore */ }
-    setMapSearching(false)
-    // re-run the full product search with the new location
     if (overrideLoc) onLocationChange(overrideLoc)
     onReSearch(loc)
+    setMapSearching(false)
   }, [location, onLocationChange, onReSearch])
 
   return (
