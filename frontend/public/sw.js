@@ -2,7 +2,7 @@
 // Caches the app shell so the UI loads instantly and works offline.
 // Network-first for API calls, cache-first for static assets.
 
-const CACHE_NAME = 'cleancart-v1'
+const CACHE_NAME = 'cleancart-v2'
 
 const STATIC_ASSETS = [
   '/',
