@@ -214,6 +214,63 @@ def health_check():
     }
 
 
+@app.get("/test/kroger")
+async def test_kroger(zip_code: str = "99201", query: str = "tortilla chips"):
+    """
+    Quick credential test for the Kroger API.
+    Visit /test/kroger in your browser to verify KROGER_CLIENT_ID and
+    KROGER_CLIENT_SECRET are working. Returns token status, nearest store,
+    and up to 3 product results so you can confirm the full flow works.
+    """
+    import os
+    result = {
+        "credentials_set": bool(os.getenv("KROGER_CLIENT_ID")) and bool(os.getenv("KROGER_CLIENT_SECRET")),
+        "token": None,
+        "location": None,
+        "products": [],
+        "error": None,
+    }
+
+    if not result["credentials_set"]:
+        result["error"] = "KROGER_CLIENT_ID or KROGER_CLIENT_SECRET not set in environment"
+        return result
+
+    try:
+        from adapters.kroger import _get_token, _find_kroger_location_id, _search_products
+        loop = asyncio.get_event_loop()
+
+        # step 1 — get token
+        token = await loop.run_in_executor(None, _get_token)
+        result["token"] = "✓ obtained" if token else "✗ failed"
+
+        # step 2 — find nearest Fred Meyer
+        location_id = await loop.run_in_executor(
+            None, _find_kroger_location_id, zip_code, "Fred Meyer"
+        )
+        result["location"] = location_id if location_id else "✗ no Fred Meyer found near " + zip_code
+
+        # step 3 — search products
+        if location_id:
+            products = await loop.run_in_executor(
+                None, _search_products, query, location_id
+            )
+            result["products"] = [
+                {
+                    "name": p.get("description", ""),
+                    "brand": p.get("brand", ""),
+                    "price": (p.get("items") or [{}])[0].get("price", {}).get("regular"),
+                }
+                for p in products[:3]
+            ]
+            if not products:
+                result["error"] = f"Token and location OK, but no products found for '{query}'"
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
 @app.post("/shop")
 async def shop(request: ShopRequest):
     """
