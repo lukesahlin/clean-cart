@@ -78,13 +78,15 @@ def _get_token() -> str:
 
 # -- Location lookup ----------------------------------------------------------
 
-def _find_kroger_location_id(zip_code: str, chain_banner: str) -> str | None:
+def _find_kroger_location_id(zip_code: str, chain_banner: str = "") -> str | None:
     """
-    Looks up Kroger locationIds near a zip code for a given banner name
-    (e.g. "Fred Meyer" or "QFC"). Returns the closest one's locationId, or None.
+    Finds the nearest Kroger-family store location ID near a zip code.
 
-    Results are cached in _location_cache for the process lifetime since
-    store locations don't change.
+    If chain_banner is given (e.g. "Fred Meyer", "QFC") it filters by that
+    banner first. If nothing is found — or no banner is specified — it falls
+    back to searching all Kroger-family stores and returns the closest one.
+
+    Results are cached for the process lifetime since store locations don't change.
     """
     cache_key = f"{zip_code}|{chain_banner}"
     if cache_key in _location_cache:
@@ -92,18 +94,28 @@ def _find_kroger_location_id(zip_code: str, chain_banner: str) -> str | None:
 
     token = _get_token()
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    params = {
-        "filter.zipCode.near": zip_code,
-        "filter.radiusInMiles": 25,
-        "filter.chain": chain_banner,
-        "filter.limit": 5,
-    }
 
-    resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
-    if resp.status_code != 200:
-        return None
+    def _query(extra_params: dict) -> list:
+        params = {
+            "filter.zipCode.near": zip_code,
+            "filter.radiusInMiles": 25,
+            "filter.limit": 10,
+            **extra_params,
+        }
+        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("data", [])
 
-    locations = resp.json().get("data", [])
+    # try the specific banner first if one was given
+    locations = []
+    if chain_banner:
+        locations = _query({"filter.chain": chain_banner})
+
+    # fall back to any Kroger-family store in the area
+    if not locations:
+        locations = _query({})
+
     if not locations:
         return None
 
@@ -111,6 +123,35 @@ def _find_kroger_location_id(zip_code: str, chain_banner: str) -> str | None:
     location_id = locations[0].get("locationId")
     _location_cache[cache_key] = location_id
     return location_id
+
+
+def _find_kroger_location_with_info(zip_code: str, chain_banner: str = "") -> dict | None:
+    """
+    Like _find_kroger_location_id but returns the full location object
+    so callers can see the store name and chain.
+    """
+    token = _get_token()
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    def _query(extra_params: dict) -> list:
+        params = {
+            "filter.zipCode.near": zip_code,
+            "filter.radiusInMiles": 25,
+            "filter.limit": 10,
+            **extra_params,
+        }
+        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("data", [])
+
+    locations = []
+    if chain_banner:
+        locations = _query({"filter.chain": chain_banner})
+    if not locations:
+        locations = _query({})
+
+    return locations[0] if locations else None
 
 
 # -- Product search -----------------------------------------------------------
@@ -138,9 +179,11 @@ def _search_products(query: str, location_id: str) -> list[dict]:
 
 # -- Store product search (returns multiple results for shop endpoint) --------
 
-def search_products_at_store(query: str, zip_code: str, banner: str = "Fred Meyer", limit: int = 10) -> list[dict]:
+def search_products_at_store(query: str, zip_code: str, banner: str = "", limit: int = 10) -> list[dict]:
     """
-    Search Kroger products at the nearest store of the given banner near zip_code.
+    Search Kroger products at the nearest Kroger-family store near zip_code.
+    If banner is given (e.g. "Fred Meyer", "QFC") it tries that first, then
+    falls back to any Kroger-family store in the area.
     Returns a list of dicts with product name, brand, price, ingredients, image, etc.
     Used by the /shop endpoint to get store-sourced product data.
     """

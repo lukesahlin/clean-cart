@@ -380,13 +380,15 @@ async def shop(request: ShopRequest):
         products = []
 
         if chain_id == "kroger":
+            # pass the store name as a banner hint — the adapter will try it
+            # first then fall back to any Kroger-family store near the zip
             name_lower = store.name.lower()
             if "qfc" in name_lower or "quality food" in name_lower:
                 banner = "QFC"
             elif "fred meyer" in name_lower:
                 banner = "Fred Meyer"
             else:
-                banner = "Fred Meyer"
+                banner = ""   # let the adapter find whatever's closest
             products = await loop.run_in_executor(
                 None, kroger_search, request.query, request.zip_code, banner, request.top_n
             )
