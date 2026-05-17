@@ -242,17 +242,17 @@ def _extract_kroger_ingredients(product: dict) -> str:
     return ""
 
 
-def search_products_at_store(query: str, zip_code: str, banner: str = "", limit: int = 10) -> list[dict]:
+def search_products_at_store(query: str, zip_code: str = "", banner: str = "",
+                             limit: int = 10, location_id: str = "") -> list[dict]:
     """
-    Search Kroger products at the nearest Kroger-family store near zip_code.
-    If banner is given (e.g. "FRED", "QFC") it tries that first, then
-    falls back to any Kroger-family store in the area.
+    Search Kroger products at a specific store (by location_id) or the nearest
+    Kroger-family store near zip_code.
 
-    Ingredients come directly from Kroger's own nutritionInformation field —
-    no need for external lookups.
+    Ingredients come directly from Kroger's own nutritionInformation field.
     """
     try:
-        location_id = _find_kroger_location_id(zip_code, banner)
+        if not location_id:
+            location_id = _find_kroger_location_id(zip_code, banner)
         if not location_id:
             return []
 

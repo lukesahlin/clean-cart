@@ -11,10 +11,15 @@
 
 import os
 import asyncio
+import logging
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+logger = logging.getLogger("cleancart")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 
 # load .env file if present (dev convenience)
 try:
@@ -338,6 +343,12 @@ async def shop(request: ShopRequest):
 
     loop = asyncio.get_event_loop()
 
+    logger.info(
+        "SHOP REQUEST  query=%r  lat=%.4f  lng=%.4f  radius=%dm  zip=%s  avoid=%s  items=%s",
+        request.query, request.lat, request.lng, request.radius_meters,
+        request.zip_code or "(auto)", request.avoid, getattr(request, "items", None),
+    )
+
     # derive zip from coordinates (Kroger API needs it)
     zip_code = request.zip_code
     if not zip_code:
@@ -350,6 +361,7 @@ async def shop(request: ShopRequest):
                 timeout=6,
             ))
             zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
+            logger.info("  Resolved zip: %s", zip_code)
         except Exception:
             pass
 
@@ -411,29 +423,38 @@ async def shop(request: ShopRequest):
 
     store_results = []
 
-    # --- Kroger: use Kroger's own Location API to find nearby stores ---
+    # --- Kroger: search every store in radius via Kroger Location API ---
     async def search_kroger_stores():
         nearby_kroger = await loop.run_in_executor(
             None, lambda: find_nearby_kroger_stores(
-                zip_code=zip_code, limit=5,
+                zip_code=zip_code, limit=10,
                 lat=request.lat, lng=request.lng
             )
         )
         chain_id_map = {"FRED": "fred_meyer", "QFC": "qfc"}
-        banners_searched = set()
+        in_radius = []
         for kstore in nearby_kroger:
             dist = _haversine(request.lat, request.lng, kstore["lat"], kstore["lng"])
-            if dist > request.radius_meters:
-                continue
+            if dist <= request.radius_meters:
+                kstore["_dist"] = round(dist)
+                in_radius.append(kstore)
+
+        logger.info(
+            "  Kroger API: %d stores found, %d in radius — %s",
+            len(nearby_kroger), len(in_radius),
+            [f"{s['chain']} {s['name']} ({s['_dist']}m)" for s in in_radius],
+        )
+
+        async def _search_one_kroger(kstore):
+            loc_id = kstore["location_id"]
             banner = kstore["chain"]
-            if banner in banners_searched:
-                continue
-            banners_searched.add(banner)
             products = await loop.run_in_executor(
-                None, kroger_search, request.query, zip_code, banner, request.top_n
+                None, lambda: kroger_search(
+                    request.query, zip_code, banner, request.top_n, location_id=loc_id
+                )
             )
             if not products:
-                continue
+                return
             scored = _filter_and_score(products)
             if scored:
                 store_results.append({
@@ -442,9 +463,11 @@ async def shop(request: ShopRequest):
                     "address": kstore["address"],
                     "lat": kstore["lat"],
                     "lng": kstore["lng"],
-                    "distance_meters": round(dist),
+                    "distance_meters": kstore["_dist"],
                     "products": scored,
                 })
+
+        await asyncio.gather(*[_search_one_kroger(ks) for ks in in_radius])
 
     # --- Walmart: no store location needed, BlueCart searches by zip ---
     async def search_walmart_store():
@@ -471,14 +494,21 @@ async def shop(request: ShopRequest):
             timeout=25,
         )
     except asyncio.TimeoutError:
-        import logging
-        logging.getLogger(__name__).warning("Shop search timed out after 25s — returning partial results")
+        logger.warning("  Shop search timed out after 25s — returning partial results")
 
     store_results.sort(key=lambda s: s.get("distance_meters") or 999999)
 
+    total_products = sum(len(s["products"]) for s in store_results)
+    logger.info(
+        "SHOP RESULT   query=%r  stores=%d  products=%d  %s",
+        request.query, len(store_results), total_products,
+        [f"{s['store_name']} ({len(s['products'])} products, {s['distance_meters']}m)"
+         for s in store_results],
+    )
+
     return {
         "query": request.query,
-        "stores_searched": 2,
+        "stores_searched": len(store_results),
         "stores_with_results": len(store_results),
         "results": store_results,
     }
