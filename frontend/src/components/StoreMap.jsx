@@ -27,6 +27,12 @@ const CHAIN_LABEL = {
   fred_meyer:  'FM',
   qfc:         'QFC',
 }
+const STORE_LOGOS = {
+  qfc: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/QFC_logo.svg/200px-QFC_logo.svg.png',
+  fred_meyer: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Fred_Meyer_logo.svg/200px-Fred_Meyer_logo.svg.png',
+  kroger: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Kroger_logo_%282019%29.svg/200px-Kroger_logo_%282019%29.svg.png',
+  walmart: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Walmart_logo.svg/200px-Walmart_logo.svg.png',
+}
 
 function makeStoreIcon(chainId) {
   const color = CHAIN_COLOR[chainId] || '#444'
@@ -297,7 +303,10 @@ export default function StoreMap({
         <div style={s.storeList}>
           {stores.slice(0, 5).map((store, i) => (
             <div key={store.place_id || `${store.name}-${i}`} style={s.storeRow}>
-              <div style={{ ...s.storeDot, background: CHAIN_COLOR[store.chain_id] || '#888' }} />
+              {STORE_LOGOS[store.chain_id]
+                ? <img src={STORE_LOGOS[store.chain_id]} alt="" style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }} />
+                : <div style={{ ...s.storeDot, background: CHAIN_COLOR[store.chain_id] || '#888' }} />
+              }
               <span style={s.storeName}>{store.name || store.store_name}</span>
               <span style={s.storeDist}>{store.distance_meters != null ? `${metersToMiles(store.distance_meters)} mi` : ''}</span>
             </div>

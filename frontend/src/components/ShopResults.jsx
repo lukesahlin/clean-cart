@@ -17,6 +17,17 @@ function gradeColor(score) {
   return { bg: '#B71C1C', light: '#FFEBEE', text: '#fff' }
 }
 
+const STORE_LOGOS = {
+  qfc: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/QFC_logo.svg/200px-QFC_logo.svg.png',
+  fred_meyer: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Fred_Meyer_logo.svg/200px-Fred_Meyer_logo.svg.png',
+  kroger: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Kroger_logo_%282019%29.svg/200px-Kroger_logo_%282019%29.svg.png',
+  walmart: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Walmart_logo.svg/200px-Walmart_logo.svg.png',
+}
+
+function storeLogo(chainId) {
+  return STORE_LOGOS[chainId] || ''
+}
+
 function storeEmoji(chainId) {
   const map = {
     kroger: '🟠', fred_meyer: '🟠', qfc: '🟠',
@@ -113,6 +124,7 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
   const [nearbyStores, setNearbyStores] = useState([])
   const [mapSearching, setMapSearching] = useState(false)
   const [radiusMeters, setRadiusMeters] = useState(8000)
+  const [mapOpen, setMapOpen] = useState(false)
 
   const summary = buildSummary(shopResults)
   const route = buildRoute(shopResults)
@@ -161,38 +173,48 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
   return (
     <div style={s.page}>
 
-      {/* Summary bar */}
-      <div style={s.summaryBar}>
-        <div style={s.summaryLeft}>
+      {/* Compact top bar — slim for iPhone, tappable to expand map */}
+      <div style={s.topBar}>
+        <div style={s.topBarLeft}>
           <span style={s.summaryBig}>{summary.cleanItems}</span>
           <span style={s.summaryOf}>/{summary.totalItems}</span>
-          <span style={s.summaryLabel}> items with clean picks</span>
+          <span style={s.summaryLabel}> clean</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {summary.storeCount > 0 && (
-            <span style={s.storePill}>🏪 {summary.storeCount} store{summary.storeCount !== 1 ? 's' : ''}</span>
-          )}
-          {isLoading && <span style={s.loadingPill}>🔍 Searching…</span>}
-        </div>
+        <button style={s.mapToggle} onClick={() => setMapOpen(!mapOpen)}>
+          {mapOpen ? '✕ Close map' : `📍 ${nearbyStores.length} stores`}
+        </button>
+        {isLoading && <span style={s.loadingPill}>🔍</span>}
       </div>
 
-      {/* Location bar — compact, always visible so user can change it */}
-      <div style={s.locationRow}>
-        <LocationBar location={location} onLocationChange={onLocationChange} compact />
-      </div>
+      {/* Collapsible map + location + store list */}
+      {mapOpen && location?.lat && (
+        <div style={s.mapDropdown}>
+          <StoreMap
+            userLocation={location}
+            locationLabel={location.label}
+            stores={nearbyStores}
+            onSearch={handleMapSearch}
+            onLocationChange={(newLoc) => {
+              onLocationChange(newLoc)
+            }}
+            searching={mapSearching || isLoading}
+          />
+        </div>
+      )}
 
-      {/* Store map — shows when we have a location */}
-      {location?.lat && (
-        <StoreMap
-          userLocation={location}
-          locationLabel={location.label}
-          stores={nearbyStores}
-          onSearch={handleMapSearch}
-          onLocationChange={(newLoc) => {
-            onLocationChange(newLoc)
-          }}
-          searching={mapSearching || isLoading}
-        />
+      {/* Inline store chips — always visible below top bar */}
+      {nearbyStores.length > 0 && !mapOpen && (
+        <div style={s.storeChipsRow}>
+          {nearbyStores.slice(0, 6).map((store, i) => (
+            <div key={`${store.name}-${i}`} style={s.storeChipItem}>
+              <img src={storeLogo(store.chain_id)} alt="" style={s.storeChipLogo} />
+              <span style={s.storeChipName}>{(store.name || '').split('—')[0].trim()}</span>
+              {store.distance_meters != null && (
+                <span style={s.storeChipDist}>{distLabel(store.distance_meters)}</span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Best store card — shown when we have results */}
@@ -200,7 +222,10 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
         <div style={s.routeCard}>
           <div style={s.routeCardLabel}>Best stop</div>
           <div style={s.routeCardStore}>
-            <span style={{ fontSize: 20 }}>{storeEmoji(bestStore.chain_id)}</span>
+            {storeLogo(bestStore.chain_id)
+              ? <img src={storeLogo(bestStore.chain_id)} alt="" style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6, background: '#fff', padding: 2 }} />
+              : <span style={{ fontSize: 20 }}>{storeEmoji(bestStore.chain_id)}</span>
+            }
             <div style={s.routeCardInfo}>
               <div style={s.routeCardName}>{bestStore.store_name}</div>
               <div style={s.routeCardMeta}>
@@ -527,7 +552,10 @@ function AllStoresCard({ route }) {
       <div style={s.allStoresTitle}>All nearby stores</div>
       {route.map(store => (
         <div key={store.store_name} style={s.allStoreRow}>
-          <span style={s.allStoreEmoji}>{storeEmoji(store.chain_id)}</span>
+          {storeLogo(store.chain_id)
+            ? <img src={storeLogo(store.chain_id)} alt="" style={{ width: 24, height: 24, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />
+            : <span style={s.allStoreEmoji}>{storeEmoji(store.chain_id)}</span>
+          }
           <div style={s.allStoreInfo}>
             <div style={s.allStoreName}>{store.store_name}</div>
             <div style={s.allStoreMeta}>
@@ -549,15 +577,38 @@ function AllStoresCard({ route }) {
 const s = {
   page: { background: '#F5F4F1', minHeight: '100%', paddingBottom: 24 },
 
-  // Summary bar
-  summaryBar: { padding: '14px 20px', background: '#fff', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  summaryLeft: { display: 'flex', alignItems: 'baseline', gap: 2 },
-  summaryBig: { fontSize: 26, fontWeight: 800, color: '#1B5E20' },
-  summaryOf: { fontSize: 18, fontWeight: 600, color: '#AAA' },
-  summaryLabel: { fontSize: 14, color: '#666' },
-  storePill:   { fontSize: 12, fontWeight: 600, color: '#555', background: '#F0EDE8', borderRadius: 20, padding: '4px 10px' },
-  loadingPill: { fontSize: 12, fontWeight: 600, color: '#888', background: '#F5F5F5', borderRadius: 20, padding: '4px 10px' },
-  locationRow: { background: '#fff', borderBottom: '1px solid #EBEBEB', padding: '6px 16px 8px' },
+  // Top bar — slim, iPhone safe
+  topBar: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '10px 14px',
+    paddingTop: 'max(10px, env(safe-area-inset-top, 10px))',
+    background: '#fff', borderBottom: '1px solid #EBEBEB',
+  },
+  topBarLeft: { display: 'flex', alignItems: 'baseline', gap: 2, flex: 1 },
+  summaryBig: { fontSize: 22, fontWeight: 800, color: '#1B5E20' },
+  summaryOf: { fontSize: 15, fontWeight: 600, color: '#AAA' },
+  summaryLabel: { fontSize: 13, color: '#666' },
+  mapToggle: {
+    fontSize: 12, fontWeight: 700, color: '#1B5E20', background: '#E8F5E9',
+    border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  loadingPill: { fontSize: 14, flexShrink: 0 },
+  mapDropdown: { borderBottom: '1px solid #EBEBEB' },
+
+  // Store chips row (visible when map is closed)
+  storeChipsRow: {
+    display: 'flex', gap: 8, padding: '8px 14px', overflowX: 'auto',
+    background: '#fff', borderBottom: '1px solid #EBEBEB',
+    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+  },
+  storeChipItem: {
+    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+    background: '#F8F7F4', borderRadius: 10, padding: '5px 10px',
+  },
+  storeChipLogo: { width: 18, height: 18, objectFit: 'contain', borderRadius: 3 },
+  storeChipName: { fontSize: 12, fontWeight: 600, color: '#333', whiteSpace: 'nowrap' },
+  storeChipDist: { fontSize: 11, color: '#AAA', whiteSpace: 'nowrap' },
 
   // Route card
   routeCard: { margin: '12px 16px 0', background: '#1B5E20', borderRadius: 18, padding: '16px', boxShadow: '0 4px 20px rgba(27,94,32,0.3)' },
