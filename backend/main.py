@@ -206,7 +206,7 @@ class ShopRequest(BaseModel):
     zip_code: str = ""          # derived from lat/lng on the backend if not provided
     radius_meters: int = 8000   # store search radius
     avoid: list[str] = []       # filter categories to flag
-    top_n: int = 5              # max products per store
+    top_n: int = 10             # max products per store to return
 
 # -- Routes -------------------------------------------------------------------
 
@@ -423,7 +423,9 @@ async def shop(request: ShopRequest):
 
     store_results = []
 
-    # --- Kroger: search every store in radius via Kroger Location API ---
+    # --- Kroger: search closest per banner, show all locations as map pins ---
+    all_kroger_pins = []  # every store in radius for the map
+
     async def search_kroger_stores():
         nearby_kroger = await loop.run_in_executor(
             None, lambda: find_nearby_kroger_stores(
@@ -438,6 +440,14 @@ async def shop(request: ShopRequest):
             if dist <= request.radius_meters:
                 kstore["_dist"] = round(dist)
                 in_radius.append(kstore)
+                all_kroger_pins.append({
+                    "store_name": kstore["name"],
+                    "chain_id": chain_id_map.get(kstore["chain"], "kroger"),
+                    "address": kstore["address"],
+                    "lat": kstore["lat"],
+                    "lng": kstore["lng"],
+                    "distance_meters": round(dist),
+                })
 
         logger.info(
             "  Kroger API: %d stores found, %d in radius — %s",
@@ -445,14 +455,56 @@ async def shop(request: ShopRequest):
             [f"{s['chain']} {s['name']} ({s['_dist']}m)" for s in in_radius],
         )
 
+        # pick the closest store per banner to actually search
+        closest_per_banner = {}
+        for kstore in in_radius:
+            banner = kstore["chain"]
+            if banner not in closest_per_banner or kstore["_dist"] < closest_per_banner[banner]["_dist"]:
+                closest_per_banner[banner] = kstore
+
+        CLEAN_BRANDS = [
+            "primal kitchen", "chosen foods", "tessemae", "sir kensington",
+            "simple mills", "siete", "kettle and fire", "hu kitchen",
+            "rxbar", "epic provisions", "jackson's", "boulder canyon",
+        ]
+
         async def _search_one_kroger(kstore):
             loc_id = kstore["location_id"]
             banner = kstore["chain"]
+            fetch_limit = max(request.top_n * 4, 20)
+
+            # main search
             products = await loop.run_in_executor(
                 None, lambda: kroger_search(
-                    request.query, zip_code, banner, request.top_n, location_id=loc_id
+                    request.query, zip_code, banner, fetch_limit, location_id=loc_id
                 )
             )
+            if not products:
+                products = []
+
+            # supplemental: search for clean brand + query if none appeared
+            found_brands = {p.get("brand", "").lower() for p in products}
+            missing_clean = [b for b in CLEAN_BRANDS if b not in found_brands
+                            and any(w in request.query.lower() for w in request.query.lower().split())]
+
+            async def _try_brand(brand):
+                return await loop.run_in_executor(
+                    None, lambda: kroger_search(
+                        f"{brand} {request.query}", zip_code, banner, 3, location_id=loc_id
+                    )
+                )
+
+            if missing_clean:
+                brand_results = await asyncio.gather(
+                    *[_try_brand(b) for b in missing_clean[:4]]
+                )
+                seen_ids = {p.get("product_id") for p in products}
+                for br in brand_results:
+                    for p in (br or []):
+                        if p.get("product_id") not in seen_ids:
+                            products.append(p)
+                            seen_ids.add(p.get("product_id"))
+
             if not products:
                 return
             scored = _filter_and_score(products)
@@ -467,7 +519,7 @@ async def shop(request: ShopRequest):
                     "products": scored,
                 })
 
-        await asyncio.gather(*[_search_one_kroger(ks) for ks in in_radius])
+        await asyncio.gather(*[_search_one_kroger(ks) for ks in closest_per_banner.values()])
 
     # --- Walmart: no store location needed, BlueCart searches by zip ---
     async def search_walmart_store():
@@ -511,6 +563,7 @@ async def shop(request: ShopRequest):
         "stores_searched": len(store_results),
         "stores_with_results": len(store_results),
         "results": store_results,
+        "nearby_pins": all_kroger_pins,
     }
 
 

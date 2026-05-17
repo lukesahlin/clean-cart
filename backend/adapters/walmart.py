@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 BLUECART_URL    = "https://api.bluecartapi.com/request"
 CACHE_TTL_HOURS = 6
-REQUEST_TIMEOUT = 15   # BlueCart can be a bit slower than a direct API
+REQUEST_TIMEOUT = 10
 MAX_RESULTS     = 10
 
 # ── Result shape ──────────────────────────────────────────────────────────────
@@ -240,9 +240,16 @@ def _fetch_bluecart_ingredients(item_id: str, api_key: str) -> str:
 
 def _enrich_with_details(results: list[dict], api_key: str) -> list[dict]:
     """
-    For products missing ingredient_text, fetch from BlueCart product detail
-    endpoint concurrently.
+    Fill missing ingredient_text using the fastest source first:
+      1. GroceryDB local parquet (instant)
+      2. BlueCart product detail API (slow, only for remaining gaps)
     """
+    # step 1: GroceryDB first — instant local lookup
+    for r in results:
+        if not r.get("ingredient_text"):
+            r["ingredient_text"] = _grocerydb_lookup(r.get("product_name", ""))
+
+    # step 2: BlueCart detail only for products still missing
     needs_lookup = [(i, r["product_id"]) for i, r in enumerate(results) if not r.get("ingredient_text")]
     if not needs_lookup:
         return results
@@ -253,7 +260,7 @@ def _enrich_with_details(results: list[dict], api_key: str) -> list[dict]:
             pool.submit(_fetch_bluecart_ingredients, item_id, api_key): (idx, item_id)
             for idx, item_id in needs_lookup
         }
-        for future in as_completed(futures, timeout=20):
+        for future in as_completed(futures, timeout=10):
             idx, item_id = futures[future]
             try:
                 ingredient_map[idx] = future.result()
@@ -264,11 +271,6 @@ def _enrich_with_details(results: list[dict], api_key: str) -> list[dict]:
         text = ingredient_map.get(idx, "")
         if text:
             results[idx]["ingredient_text"] = text
-
-    # fallback: try GroceryDB for anything still missing
-    for r in results:
-        if not r.get("ingredient_text"):
-            r["ingredient_text"] = _grocerydb_lookup(r.get("product_name", ""))
 
     return results
 

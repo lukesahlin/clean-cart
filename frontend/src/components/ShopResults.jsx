@@ -119,26 +119,33 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
   const bestStore = route[0]
   const isLoading = shopResults.some(r => r.loading)
 
-  // Build map store pins from actual search results (Kroger API provides lat/lng)
+  // Build map pins: stores with results + all nearby Kroger pins from API
   useEffect(() => {
-    const storesFromResults = []
+    const pins = []
     const seen = new Set()
-    for (const { data } of shopResults) {
-      for (const sr of (data?.results || [])) {
-        const key = `${sr.store_name}|${sr.lat}|${sr.lng}`
-        if (seen.has(key) || !sr.lat || !sr.lng) continue
-        seen.add(key)
-        storesFromResults.push({
-          name: sr.store_name,
-          chain_id: sr.chain_id,
-          address: sr.address,
-          lat: sr.lat,
-          lng: sr.lng,
-          distance_meters: sr.distance_meters,
-        })
-      }
+
+    const addPin = (s) => {
+      const key = `${s.store_name || s.name}|${s.lat}|${s.lng}`
+      if (seen.has(key) || !s.lat || !s.lng) return
+      seen.add(key)
+      pins.push({
+        name: s.store_name || s.name,
+        chain_id: s.chain_id,
+        address: s.address,
+        lat: s.lat,
+        lng: s.lng,
+        distance_meters: s.distance_meters,
+      })
     }
-    if (storesFromResults.length > 0) setNearbyStores(storesFromResults)
+
+    for (const { data } of shopResults) {
+      // stores with product results
+      for (const sr of (data?.results || [])) addPin(sr)
+      // extra nearby pins (stores in radius but not searched for products)
+      for (const pin of (data?.nearby_pins || [])) addPin(pin)
+    }
+
+    if (pins.length > 0) setNearbyStores(pins)
   }, [shopResults])
 
   const handleMapSearch = useCallback(async (newRadiusMeters, overrideLoc = null) => {
