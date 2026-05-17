@@ -42,6 +42,54 @@ function distLabel(meters) {
   return mi < 10 ? `${mi.toFixed(1)} mi` : `${Math.round(mi)} mi`
 }
 
+/** Opens Google Maps directions (works on mobile + desktop). */
+function buildDirectionsUrl({ lat, lng, address, originLat, originLng }) {
+  const hasCoords = typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)
+    && !(lat === 0 && lng === 0)
+  const params = new URLSearchParams()
+  params.set('api', '1')
+  if (hasCoords) {
+    params.set('destination', `${lat},${lng}`)
+  } else if (address?.trim()) {
+    params.set('destination', address.trim())
+  } else {
+    return null
+  }
+  if (
+    typeof originLat === 'number' && typeof originLng === 'number'
+    && Number.isFinite(originLat) && Number.isFinite(originLng)
+  ) {
+    params.set('origin', `${originLat},${originLng}`)
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`
+}
+
+/** Coordinates on route entries may be missing; merge from map pins when needed. */
+function directionsUrlForStore(store, nearbyStores, userLocation) {
+  let lat = store.lat
+  let lng = store.lng
+  const coordsOk = typeof lat === 'number' && typeof lng === 'number'
+    && Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
+  if (!coordsOk) {
+    const target = (store.store_name || '').split('—')[0].trim().toLowerCase()
+    const pin = nearbyStores.find((n) => {
+      const nname = (n.name || '').split('—')[0].trim().toLowerCase()
+      return nname === target || (n.name || '') === (store.store_name || '')
+    })
+    if (pin && typeof pin.lat === 'number' && typeof pin.lng === 'number') {
+      lat = pin.lat
+      lng = pin.lng
+    }
+  }
+  return buildDirectionsUrl({
+    lat,
+    lng,
+    address: store.address,
+    originLat: userLocation?.lat,
+    originLng: userLocation?.lng,
+  })
+}
+
 function ingCount(text) {
   if (!text) return null
   return text.split(',').filter(t => t.trim()).length
@@ -87,6 +135,8 @@ function buildRoute(shopResults) {
             chain_id: storeResult.chain_id,
             address: storeResult.address,
             distance_meters: storeResult.distance_meters,
+            lat: storeResult.lat,
+            lng: storeResult.lng,
             product,
             score,
           }
@@ -105,6 +155,8 @@ function buildRoute(shopResults) {
         chain_id: winner.chain_id,
         address: winner.address,
         distance_meters: winner.distance_meters,
+        lat: winner.lat,
+        lng: winner.lng,
         items: [],
         totalPrice: 0,
         hasPrices: false,
@@ -154,6 +206,9 @@ export default function ShopResults({ shopResults, discoveredPins = [], location
   const route = buildRoute(shopResults)
   const bestStore = route[0]
   const isLoading = shopResults.some(r => r.loading)
+  const bestDirectionsUrl = bestStore?.items?.length
+    ? directionsUrlForStore(bestStore, nearbyStores, location)
+    : null
 
   // Build map pins: start with discovered pins (shown before product search),
   // then merge in any additional pins from product search results
@@ -303,6 +358,16 @@ export default function ShopResults({ shopResults, discoveredPins = [], location
               </div>
             ))}
           </div>
+          {bestDirectionsUrl && (
+            <a
+              href={bestDirectionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={s.routeDirectionsBtn}
+            >
+              Get directions
+            </a>
+          )}
           {route.length > 1 && (
             <div style={s.routeExtra}>+{route.length - 1} more store{route.length > 2 ? 's' : ''} nearby</div>
           )}
@@ -702,6 +767,21 @@ const s = {
   routeItemName: { fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: 600, width: 85, flexShrink: 0, textTransform: 'capitalize' },
   routeItemProduct: { flex: 1, fontSize: 12, color: 'rgba(255,255,255,0.9)' },
   routeItemPrice: { fontSize: 12, fontWeight: 800, color: '#fff', flexShrink: 0 },
+  routeDirectionsBtn: {
+    display: 'block',
+    width: '100%',
+    marginTop: 14,
+    padding: '12px 16px',
+    textAlign: 'center',
+    textDecoration: 'none',
+    fontSize: 14,
+    fontWeight: 800,
+    color: '#1B5E20',
+    background: 'rgba(255,255,255,0.95)',
+    borderRadius: 14,
+    border: 'none',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+  },
   routeExtra: { marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'right' },
 
   emptyBanner: { margin: '24px 16px', background: '#fff', borderRadius: 20, padding: '36px 24px', textAlign: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' },
