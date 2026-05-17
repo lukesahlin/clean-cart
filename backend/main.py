@@ -209,6 +209,17 @@ class ShopRequest(BaseModel):
     avoid: list[str] = []       # filter categories to flag
     top_n: int = 10             # max products per store to return
 
+class ShopAtStoreRequest(BaseModel):
+    query: str
+    location_id: str = ""       # Kroger location ID (empty for Walmart)
+    chain: str = ""             # e.g. "FRED", "QFC", "WALMART"
+    store_name: str = ""
+    lat: float = 0
+    lng: float = 0
+    zip_code: str = ""
+    avoid: list[str] = []
+    top_n: int = 10
+
 # -- Routes -------------------------------------------------------------------
 
 @app.get("/health")
@@ -329,6 +340,59 @@ async def test_kroger(zip_code: str = "", query: str = "tortilla chips"):
     return result
 
 
+CLEAN_BRANDS = [
+    "primal kitchen", "chosen foods", "tessemae", "sir kensington",
+    "simple mills", "siete", "kettle and fire", "hu kitchen",
+    "rxbar", "epic provisions", "jackson's", "boulder canyon",
+]
+
+
+def _filter_and_score(products: list[dict], avoid: list[str], top_n: int = 10) -> list[dict]:
+    """Run filter + health-score on a list of raw products, return sorted top_n."""
+    from filter_engine import analyze_off_product
+    from scoring_engine import score_product
+
+    results = []
+    for p in products:
+        ingredient_text = p.get("ingredient_text", "")
+        if ingredient_text:
+            off_dict = {
+                "ingredients_text": ingredient_text,
+                "ingredients_tags": p.get("ingredients_tags", []) or [],
+                "additives_tags": p.get("additives_tags", []) or [],
+                "ingredients_analysis_tags": p.get("ingredients_analysis_tags", []) or [],
+            }
+            filter_result = analyze_off_product(off_dict, user_avoid=avoid)
+            product_meta = {
+                "is_organic": "organic" in ingredient_text.lower(),
+                "nutriscore": p.get("nutriscore", ""),
+                "nova_group": p.get("nova_group"),
+                "ingredient_text": ingredient_text,
+                "additives_tags": p.get("additives_tags", []) or [],
+            }
+            hs = score_product(filter_result, product_meta)
+            health_score = hs.to_dict()
+        else:
+            filter_result = {
+                "is_clean": True, "flagged": [], "checked_categories": [],
+                "ingredients_unknown": True,
+            }
+            health_score = {
+                "score": -1, "grade": "unknown",
+                "warnings": ["Ingredient data not available — scan barcode in store"],
+                "positives": [], "breakdown": {},
+            }
+
+        results.append({**p, "filter_result": filter_result, "health_score": health_score})
+
+    results.sort(key=lambda x: (
+        (x.get("filter_result") or {}).get("ingredients_unknown", False),
+        not (x.get("filter_result") or {}).get("is_clean", True),
+        -(x.get("health_score") or {}).get("score", 0),
+    ))
+    return results[:top_n]
+
+
 class DiscoverStoresRequest(BaseModel):
     lat: float
     lng: float
@@ -424,15 +488,101 @@ async def discover_stores(request: DiscoverStoresRequest):
     return {"pins": pins, "zip_code": zip_code}
 
 
+@app.post("/shop-at-store")
+async def shop_at_store(request: ShopAtStoreRequest):
+    """
+    Search products at a SINGLE store. Called by the frontend per-store
+    so results can render incrementally as each store finishes.
+    """
+    from adapters.kroger import search_products_at_store as kroger_search
+    from adapters.walmart import search_walmart
+
+    loop = asyncio.get_event_loop()
+    zip_code = request.zip_code
+
+    logger.info(
+        "SHOP-AT-STORE  query=%r  store=%s  chain=%s  loc_id=%s",
+        request.query, request.store_name, request.chain, request.location_id,
+    )
+
+    products = []
+
+    if request.chain == "WALMART":
+        products = await loop.run_in_executor(
+            None, search_walmart, request.query, zip_code, ""
+        )
+    else:
+        loc_id = request.location_id
+        if not loc_id:
+            return {"store_name": request.store_name, "products": [], "error": "no location_id"}
+
+        fetch_limit = max(request.top_n * 4, 20)
+        products = await loop.run_in_executor(
+            None, lambda: kroger_search(
+                request.query, zip_code, request.chain, fetch_limit,
+                location_id=loc_id
+            )
+        )
+        if not products:
+            products = []
+
+        # supplemental clean brand search
+        found_brands = {p.get("brand", "").lower() for p in products}
+        missing_clean = [b for b in CLEAN_BRANDS if b not in found_brands]
+
+        if missing_clean:
+            brand_results = await asyncio.gather(
+                *[loop.run_in_executor(
+                    None, lambda b=brand: kroger_search(
+                        f"{b} {request.query}", zip_code, request.chain, 3,
+                        location_id=loc_id
+                    )
+                ) for brand in missing_clean[:2]]
+            )
+            seen_ids = {p.get("product_id") for p in products}
+            query_words = set(request.query.lower().split())
+            for br in brand_results:
+                for p in (br or []):
+                    if p.get("product_id") in seen_ids:
+                        continue
+                    pname = (p.get("product_name") or p.get("description") or "").lower()
+                    if any(w in pname for w in query_words):
+                        products.append(p)
+                        seen_ids.add(p.get("product_id"))
+
+    if not products:
+        return {
+            "store_name": request.store_name,
+            "chain_id": request.chain.lower() if request.chain != "WALMART" else "walmart",
+            "products": [],
+        }
+
+    chain_id_map = {"FRED": "fred_meyer", "QFC": "qfc", "WALMART": "walmart"}
+    scored = _filter_and_score(products, request.avoid, request.top_n)
+
+    logger.info(
+        "SHOP-AT-STORE RESULT  query=%r  store=%s  products=%d",
+        request.query, request.store_name, len(scored),
+    )
+
+    return {
+        "store_name": request.store_name,
+        "chain_id": chain_id_map.get(request.chain, "kroger"),
+        "address": f"Near {zip_code}" if request.chain == "WALMART" else "",
+        "lat": request.lat,
+        "lng": request.lng,
+        "distance_meters": 0,
+        "products": scored,
+    }
+
+
 @app.post("/shop")
 async def shop(request: ShopRequest):
     """
-    Store-first search: queries Kroger + Walmart APIs directly.
-    Searches stores sequentially (closest first) and stops searching
-    additional Kroger stores once a clean product is found.
+    Store-first search (legacy endpoint kept for backward compatibility).
+    Queries Kroger + Walmart APIs directly. Searches stores sequentially
+    (closest first) and stops searching once a clean product is found.
     """
-    from filter_engine import analyze_off_product
-    from scoring_engine import score_product
     from adapters.kroger import search_products_at_store as kroger_search
     from adapters.kroger import find_nearby_kroger_stores
     from adapters.walmart import search_walmart
@@ -452,55 +602,8 @@ async def shop(request: ShopRequest):
                 "stores_with_results": 0, "results": [],
                 "error": "Could not determine zip code from coordinates"}
 
-    def _filter_and_score(products: list[dict]) -> list[dict]:
-        results = []
-        for p in products:
-            ingredient_text = p.get("ingredient_text", "")
-            if ingredient_text:
-                off_dict = {
-                    "ingredients_text": ingredient_text,
-                    "ingredients_tags": p.get("ingredients_tags", []) or [],
-                    "additives_tags": p.get("additives_tags", []) or [],
-                    "ingredients_analysis_tags": p.get("ingredients_analysis_tags", []) or [],
-                }
-                filter_result = analyze_off_product(off_dict, user_avoid=request.avoid)
-                product_meta = {
-                    "is_organic": "organic" in ingredient_text.lower(),
-                    "nutriscore": p.get("nutriscore", ""),
-                    "nova_group": p.get("nova_group"),
-                    "ingredient_text": ingredient_text,
-                    "additives_tags": p.get("additives_tags", []) or [],
-                }
-                hs = score_product(filter_result, product_meta)
-                health_score = hs.to_dict()
-            else:
-                filter_result = {
-                    "is_clean": True, "flagged": [], "checked_categories": [],
-                    "ingredients_unknown": True,
-                }
-                health_score = {
-                    "score": -1, "grade": "unknown",
-                    "warnings": ["Ingredient data not available — scan barcode in store"],
-                    "positives": [], "breakdown": {},
-                }
-
-            results.append({**p, "filter_result": filter_result, "health_score": health_score})
-
-        results.sort(key=lambda x: (
-            (x.get("filter_result") or {}).get("ingredients_unknown", False),
-            not (x.get("filter_result") or {}).get("is_clean", True),
-            -(x.get("health_score") or {}).get("score", 0),
-        ))
-        return results[:request.top_n]
-
     store_results = []
     all_kroger_pins = []
-
-    CLEAN_BRANDS = [
-        "primal kitchen", "chosen foods", "tessemae", "sir kensington",
-        "simple mills", "siete", "kettle and fire", "hu kitchen",
-        "rxbar", "epic provisions", "jackson's", "boulder canyon",
-    ]
 
     # --- Kroger: discover stores, search sequentially, stop on clean ---
     async def search_kroger_stores():
@@ -581,7 +684,7 @@ async def shop(request: ShopRequest):
             if not products:
                 continue
 
-            scored = _filter_and_score(products)
+            scored = _filter_and_score(products, request.avoid, request.top_n)
             if scored:
                 store_results.append({
                     "store_name": kstore["name"],
@@ -610,7 +713,7 @@ async def shop(request: ShopRequest):
         )
         if not products:
             return
-        scored = _filter_and_score(products)
+        scored = _filter_and_score(products, request.avoid, request.top_n)
         if scored:
             store_results.append({
                 "store_name": "Walmart",

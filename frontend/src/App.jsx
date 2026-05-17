@@ -9,7 +9,7 @@ import AuthScreen from './components/AuthScreen.jsx'
 import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { shopAtStores, discoverStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
+import { shopAtSingleStore, discoverStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
 
 
 export default function App() {
@@ -64,30 +64,85 @@ export default function App() {
     }
 
     // Phase 1: discover stores so pins show on the map immediately
+    let pins = []
+    let discoveredZip = loc.zip || ''
     try {
       const discovery = await discoverStores({
         lat: loc.lat, lng: loc.lng, zip_code: loc.zip,
       })
-      setDiscoveredPins(discovery.pins || [])
+      pins = discovery.pins || []
+      discoveredZip = discovery.zip_code || discoveredZip
+      setDiscoveredPins(pins)
     } catch {
-      // non-fatal — product search can proceed without pins
+      // non-fatal
     }
 
-    // Phase 2: search products per item concurrently
+    if (!pins.length) {
+      setIsLoading(false)
+      setShopResults(items.map(item => ({ item, data: { results: [] }, loading: false, error: 'No stores found nearby' })))
+      return
+    }
+
+    // Phase 2: for each item, search stores one at a time (closest first),
+    // stop when a clean match is found. All items run in parallel.
     await Promise.all(items.map(async (item, idx) => {
+      const storeResults = []
+
       try {
-        const data = await shopAtStores({
-          query: item,
-          lat: loc.lat,
-          lng: loc.lng,
-          zip_code: loc.zip,
-          avoid: avoidList,
-          top_n: 10,
-          radius_meters: 40000,
-        })
-        setShopResults(prev => prev.map((r, i) => i === idx ? { ...r, data, loading: false } : r))
+        let foundClean = false
+
+        for (const store of pins) {
+          if (foundClean) break
+
+          try {
+            const result = await shopAtSingleStore({
+              query: item,
+              location_id: store.location_id || '',
+              chain: store.chain || '',
+              store_name: store.store_name || '',
+              lat: store.lat,
+              lng: store.lng,
+              zip_code: discoveredZip,
+              avoid: avoidList,
+              top_n: 10,
+            })
+
+            if (result.products?.length > 0) {
+              storeResults.push({
+                store_name: result.store_name || store.store_name,
+                chain_id: result.chain_id || store.chain_id,
+                address: result.address || store.address,
+                lat: store.lat,
+                lng: store.lng,
+                distance_meters: store.distance_meters,
+                products: result.products,
+              })
+
+              // update UI immediately with this store's results
+              setShopResults(prev => prev.map((r, i) =>
+                i === idx ? { ...r, data: { results: [...storeResults] }, loading: true } : r
+              ))
+
+              // check if we found a clean product (score >= 70)
+              foundClean = result.products.some(p =>
+                p.filter_result?.is_clean &&
+                !p.filter_result?.ingredients_unknown &&
+                (p.health_score?.score ?? 0) >= 70
+              )
+            }
+          } catch {
+            // single store failed, continue to next
+          }
+        }
+
+        // mark this item as done
+        setShopResults(prev => prev.map((r, i) =>
+          i === idx ? { ...r, data: { results: [...storeResults] }, loading: false } : r
+        ))
       } catch (err) {
-        setShopResults(prev => prev.map((r, i) => i === idx ? { ...r, loading: false, error: err.message } : r))
+        setShopResults(prev => prev.map((r, i) =>
+          i === idx ? { ...r, loading: false, error: err.message } : r
+        ))
       }
     }))
 

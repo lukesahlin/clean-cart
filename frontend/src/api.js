@@ -84,6 +84,19 @@ export async function discoverStores({ lat, lng, zip_code = '', radius_meters = 
   return res.json()
 }
 
+export async function shopAtSingleStore({ query, location_id = '', chain = '', store_name = '', lat = 0, lng = 0, zip_code = '', avoid = [], top_n = 10 }) {
+  const res = await fetch(`${BASE}/shop-at-store`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, location_id, chain, store_name, lat, lng, zip_code, avoid, top_n }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Store search failed')
+  }
+  return res.json()
+}
+
 export async function shopAtStores({ query, lat, lng, zip_code = '99201', radius_meters = 8000, avoid = [], top_n = 5 }) {
   const res = await fetch(`${BASE}/shop`, {
     method: 'POST',
