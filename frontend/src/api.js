@@ -110,16 +110,6 @@ export async function shopAtStores({ query, lat, lng, zip_code = '99201', radius
   return res.json()
 }
 
-export async function searchInstacart({ query, zip_code = '99201', avoid = [] }) {
-  const res = await fetch(`${BASE}/instacart/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, zip_code, avoid }),
-  })
-  if (!res.ok) return { results: [], total: 0 }
-  return res.json()
-}
-
 export async function fetchProductByBarcode(barcode, avoid = []) {
   const avoidParam = avoid.length ? `?avoid=${avoid.join(',')}` : ''
   const res = await fetch(`${BASE}/product/barcode/${barcode}${avoidParam}`)

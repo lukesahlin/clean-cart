@@ -18,10 +18,10 @@ function gradeColor(score) {
 }
 
 const STORE_LOGOS = {
-  qfc: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/QFC_logo.svg/200px-QFC_logo.svg.png',
-  fred_meyer: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Fred_Meyer_logo.svg/200px-Fred_Meyer_logo.svg.png',
-  kroger: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Kroger_logo_%282019%29.svg/200px-Kroger_logo_%282019%29.svg.png',
-  walmart: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Walmart_logo.svg/200px-Walmart_logo.svg.png',
+  qfc: '/logos/qfc.svg',
+  fred_meyer: '/logos/fred-meyer.svg',
+  kroger: '/logos/kroger.svg',
+  walmart: '/logos/walmart.svg',
 }
 
 function storeLogo(chainId) {
