@@ -158,50 +158,58 @@ def _parse_result(item: dict, store_branch_id: str = "walmart") -> dict:
     }
 
 
-# ── OFF ingredient bridge ─────────────────────────────────────────────────────
+# ── BlueCart product detail for ingredients ───────────────────────────────────
 
-def _fetch_off_ingredients(upc: str) -> str:
+def _fetch_bluecart_ingredients(item_id: str, api_key: str) -> str:
     """
-    Look up ingredient text from Open Food Facts using a UPC/barcode.
-    BlueCart's item_id maps to Walmart's UPC, which OFF indexes.
-    Returns empty string if not found.
+    Fetch ingredient text from BlueCart's product detail endpoint.
+    The search endpoint doesn't include ingredients, but the detail endpoint
+    has a dedicated 'ingredients' field.
     """
-    if not upc or not upc.isdigit():
+    if not item_id or not api_key:
         return ""
     try:
-        url = f"https://world.openfoodfacts.org/api/v0/product/{upc}.json"
-        resp = httpx.get(url, timeout=6.0, headers={"User-Agent": "CleanCart/1.0"})
+        params = {
+            "api_key": api_key,
+            "type": "product",
+            "item_id": item_id,
+        }
+        resp = httpx.get(BLUECART_URL, params=params, timeout=REQUEST_TIMEOUT)
         if resp.status_code != 200:
             return ""
-        data = resp.json()
-        if data.get("status") != 1:
-            return ""
-        return data.get("product", {}).get("ingredients_text", "") or ""
+        product = resp.json().get("product", {})
+        ing = product.get("ingredients", "") or ""
+        if ing:
+            return ing.strip()[:800]
+        return _extract_ingredient_text(product)
     except Exception:
         return ""
 
 
-def _enrich_with_off(results: list[dict]) -> list[dict]:
+def _enrich_with_details(results: list[dict], api_key: str) -> list[dict]:
     """
-    For products missing ingredient_text, try to fetch it from OFF
-    using the product's UPC concurrently.
+    For products missing ingredient_text, fetch from BlueCart product detail
+    endpoint concurrently.
     """
     needs_lookup = [(i, r["product_id"]) for i, r in enumerate(results) if not r.get("ingredient_text")]
     if not needs_lookup:
         return results
 
     ingredient_map = {}
-    with ThreadPoolExecutor(max_workers=min(len(needs_lookup), 6)) as pool:
-        futures = {pool.submit(_fetch_off_ingredients, upc): upc for _, upc in needs_lookup}
-        for future in as_completed(futures, timeout=8):
-            upc = futures[future]
+    with ThreadPoolExecutor(max_workers=min(len(needs_lookup), 4)) as pool:
+        futures = {
+            pool.submit(_fetch_bluecart_ingredients, item_id, api_key): (idx, item_id)
+            for idx, item_id in needs_lookup
+        }
+        for future in as_completed(futures, timeout=20):
+            idx, item_id = futures[future]
             try:
-                ingredient_map[upc] = future.result()
+                ingredient_map[idx] = future.result()
             except Exception:
-                ingredient_map[upc] = ""
+                ingredient_map[idx] = ""
 
-    for idx, upc in needs_lookup:
-        text = ingredient_map.get(upc, "")
+    for idx, _ in needs_lookup:
+        text = ingredient_map.get(idx, "")
         if text:
             results[idx]["ingredient_text"] = text
 
@@ -242,6 +250,12 @@ def search_walmart(query: str, zip_code: str = "99201", store_branch_id: str = "
 
         resp = httpx.get(BLUECART_URL, params=params, timeout=REQUEST_TIMEOUT)
 
+        # if zip code was rejected, retry without it
+        if resp.status_code == 400 and "customer_zipcode" in params:
+            logger.info(f"BlueCart rejected zip {zip_code} — retrying without zip")
+            del params["customer_zipcode"]
+            resp = httpx.get(BLUECART_URL, params=params, timeout=REQUEST_TIMEOUT)
+
         if resp.status_code != 200:
             logger.warning(f"BlueCart returned {resp.status_code} for {query!r}: {resp.text[:200]}")
             return []
@@ -250,8 +264,8 @@ def search_walmart(query: str, zip_code: str = "99201", store_branch_id: str = "
         items   = data.get("search_results") or []
         results = [_parse_result(item, store_branch_id) for item in items[:MAX_RESULTS]]
 
-        # bridge to OFF for any products missing ingredient text
-        results = _enrich_with_off(results)
+        # fetch ingredients from BlueCart product detail for items that need it
+        results = _enrich_with_details(results, api_key)
 
         _set_cached(query, results)
         logger.info(f"Walmart/BlueCart: {len(results)} results for {query!r}")

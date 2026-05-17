@@ -230,25 +230,16 @@ def _search_products(query: str, location_id: str) -> list[dict]:
 
 # -- Store product search (returns multiple results for shop endpoint) --------
 
-def _fetch_off_ingredients(upc: str) -> str:
+def _extract_kroger_ingredients(product: dict) -> str:
     """
-    Look up ingredient text from Open Food Facts using the product's UPC/barcode.
-    Kroger productId is the UPC, so this bridges Kroger price data with OFF ingredient data.
-    Returns empty string if not found.
+    Extract ingredient text directly from Kroger's API response.
+    The data lives in nutritionInformation[0].ingredientStatement.
     """
-    if not upc:
-        return ""
-    try:
-        url = f"https://world.openfoodfacts.org/api/v0/product/{upc}.json"
-        resp = httpx.get(url, timeout=6.0, headers={"User-Agent": "CleanCart/1.0"})
-        if resp.status_code != 200:
-            return ""
-        data = resp.json()
-        if data.get("status") != 1:
-            return ""
-        return data.get("product", {}).get("ingredients_text", "") or ""
-    except Exception:
-        return ""
+    nutrition = product.get("nutritionInformation")
+    if isinstance(nutrition, list) and nutrition:
+        statement = nutrition[0].get("ingredientStatement", "") or ""
+        return statement.strip()
+    return ""
 
 
 def search_products_at_store(query: str, zip_code: str, banner: str = "", limit: int = 10) -> list[dict]:
@@ -257,9 +248,8 @@ def search_products_at_store(query: str, zip_code: str, banner: str = "", limit:
     If banner is given (e.g. "FRED", "QFC") it tries that first, then
     falls back to any Kroger-family store in the area.
 
-    Kroger's API gives us price + availability but no ingredient data.
-    We bridge that gap by looking up each product's UPC on Open Food Facts
-    concurrently so the whole search completes in ~3 seconds instead of 30+.
+    Ingredients come directly from Kroger's own nutritionInformation field —
+    no need for external lookups.
     """
     try:
         location_id = _find_kroger_location_id(zip_code, banner)
@@ -280,7 +270,6 @@ def search_products_at_store(query: str, zip_code: str, banner: str = "", limit:
 
         products = resp.json().get("data", [])
 
-        # parse Kroger product data (no network calls yet)
         parsed = []
         for p in products:
             items = p.get("items", [{}])
@@ -311,6 +300,8 @@ def search_products_at_store(query: str, zip_code: str, banner: str = "", limit:
                 if sizes:
                     image_url = sizes[0].get("url", "")
 
+            ingredient_text = _extract_kroger_ingredients(p)
+
             parsed.append({
                 "product_id": upc,
                 "product_name": product_name,
@@ -320,29 +311,13 @@ def search_products_at_store(query: str, zip_code: str, banner: str = "", limit:
                 "price_str": f"${float(price):.2f}" if price else "",
                 "in_stock": bool(in_store),
                 "size": item.get("size", ""),
-                "ingredient_text": "",
+                "ingredient_text": ingredient_text,
                 "store_banner": banner,
                 "zip_code": zip_code,
                 "location_id": location_id,
                 "source_url": f"https://www.kroger.com/p/{upc}",
                 "chain_id": "kroger",
             })
-
-        # fetch OFF ingredients concurrently for all products at once
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        upcs = [p["product_id"] for p in parsed]
-        ingredient_map = {}
-        with ThreadPoolExecutor(max_workers=min(len(upcs), 6)) as pool:
-            futures = {pool.submit(_fetch_off_ingredients, upc): upc for upc in upcs if upc}
-            for future in as_completed(futures, timeout=8):
-                upc = futures[future]
-                try:
-                    ingredient_map[upc] = future.result()
-                except Exception:
-                    ingredient_map[upc] = ""
-
-        for p in parsed:
-            p["ingredient_text"] = ingredient_map.get(p["product_id"], "")
 
         return parsed
 
