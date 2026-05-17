@@ -107,22 +107,22 @@ export default function LocationBar({ location, onLocationChange, compact = fals
 }
 
 const s = {
-  wrap:        { padding: '10px 16px', background: '#fff', borderBottom: '1px solid #EBEBEB' },
+  wrap:        { padding: '12px 16px', background: '#fff', borderBottom: '1px solid #EBEBEB' },
   wrapCompact: { padding: '8px 16px 4px' },
 
-  pill:        { display: 'flex', alignItems: 'center', gap: 6, background: '#F5F4F1', border: '1.5px solid #E0DDD8', borderRadius: 20, padding: '8px 14px', cursor: 'pointer', width: '100%', textAlign: 'left' },
-  pillCompact: { display: 'inline-flex', alignItems: 'center', gap: 5, background: '#F0EDE8', border: 'none', borderRadius: 14, padding: '5px 11px', cursor: 'pointer', textAlign: 'left' },
+  pill:        { display: 'flex', alignItems: 'center', gap: 8, background: '#F7F6F3', border: '1.5px solid #E8E6E3', borderRadius: 24, padding: '10px 16px', cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'border-color 0.15s' },
+  pillCompact: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#F0EDE8', border: 'none', borderRadius: 14, padding: '6px 12px', cursor: 'pointer', textAlign: 'left' },
 
   pin:    { fontSize: 14, flexShrink: 0 },
-  label:  { flex: 1, fontSize: 13, fontWeight: 600, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  chevron:{ fontSize: 16, color: '#AAA', flexShrink: 0 },
+  label:  { flex: 1, fontSize: 14, fontWeight: 600, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  chevron:{ fontSize: 16, color: '#C5C5C5', flexShrink: 0 },
 
   editRow:    { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  gpsBtn:     { display: 'flex', alignItems: 'center', gap: 5, background: '#E8F5E9', color: '#1B5E20', border: 'none', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 },
-  orDivider:  { fontSize: 12, color: '#BBB', flexShrink: 0 },
+  gpsBtn:     { display: 'flex', alignItems: 'center', gap: 5, background: '#E8F5E9', color: '#1B5E20', border: 'none', borderRadius: 12, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 },
+  orDivider:  { fontSize: 12, color: '#CCC', flexShrink: 0 },
   zipRow:     { display: 'flex', flex: 1, gap: 6, minWidth: 160 },
-  zipInput:   { flex: 1, border: '1.5px solid #E0DDD8', borderRadius: 10, padding: '8px 12px', fontSize: 14, outline: 'none', background: '#fff', minWidth: 0 },
-  goBtn:      { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer', flexShrink: 0 },
-  cancelBtn:  { background: 'none', border: 'none', fontSize: 18, color: '#BBB', cursor: 'pointer', padding: '0 4px', flexShrink: 0 },
-  errorText:  { fontSize: 12, color: '#B71C1C', marginTop: 6 },
+  zipInput:   { flex: 1, border: '1.5px solid #E8E6E3', borderRadius: 12, padding: '9px 14px', fontSize: 14, outline: 'none', background: '#fff', minWidth: 0 },
+  goBtn:      { background: '#1B5E20', color: '#fff', border: 'none', borderRadius: 12, padding: '9px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', flexShrink: 0 },
+  cancelBtn:  { background: 'none', border: 'none', fontSize: 18, color: '#CCC', cursor: 'pointer', padding: '0 4px', flexShrink: 0 },
+  errorText:  { fontSize: 12, color: '#C62828', marginTop: 8, fontWeight: 500 },
 }

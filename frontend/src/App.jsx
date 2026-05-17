@@ -1,15 +1,14 @@
 // App.jsx -- Clean Cart
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import GroceryList from './components/GroceryList.jsx'
 import ShopResults from './components/ShopResults.jsx'
 import ProductDetail from './components/ProductDetail.jsx'
 import Settings from './components/Settings.jsx'
 import BarcodeScanner from './components/BarcodeScanner.jsx'
 import AuthScreen from './components/AuthScreen.jsx'
-import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { shopAtSingleStore, discoverStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
+import { shopAtSingleStore, discoverStores, requestGeolocation, reverseGeocode } from './api.js'
 
 
 export default function App() {
@@ -20,12 +19,11 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [shopResults, setShopResults] = useState(null)   // [{ item, data, loading, error }]
+  const [shopResults, setShopResults] = useState(null)
   const [currentItems, setCurrentItems] = useState([])
-  const [discoveredPins, setDiscoveredPins] = useState([])  // store pins from /discover-stores
+  const [discoveredPins, setDiscoveredPins] = useState([])
 
-  // location state — visible to the user, not just a ref
-  const [location, setLocation] = useState(null)   // { lat, lng, zip, label }
+  const [location, setLocation] = useState(null)
 
   const resolveLocation = useCallback(async () => {
     if (location) return location
@@ -182,7 +180,6 @@ export default function App() {
 
   const mainContent = () => {
     if (tab === 'scan') return <BarcodeScanner avoidList={avoidList} onClose={() => setTab('list')} onProductFound={handleScannedProduct} embedded />
-    if (tab === 'instacart') return <InstacartSearch avoidList={avoidList} />
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && shopResults) {
@@ -198,25 +195,27 @@ export default function App() {
         <header style={s.header}>
           <div style={s.logo}>
             <img src="/logo.jpg" alt="Clean Cart" style={s.logoImg} />
+            <span style={s.logoText}>Clean Cart</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {tab === 'list' && screen === 'results' && shopResults && (
-              <button style={s.backPill} onClick={() => { setScreen('list'); setShopResults(null) }}>← New list</button>
+              <button style={s.backPill} onClick={() => { setScreen('list'); setShopResults(null) }}>← List</button>
             )}
-            <span style={s.userEmail}>{user.email?.split('@')[0]}</span>
+            <button style={s.avatarBtn} onClick={() => handleTabChange('settings')}>
+              {user.email?.[0]?.toUpperCase() || 'U'}
+            </button>
           </div>
         </header>
       )}
 
-      <main style={{ ...s.main, paddingBottom: tab === 'scan' ? 0 : 80 }}>
+      <main style={{ ...s.main, paddingBottom: tab === 'scan' ? 0 : 72 }}>
         {mainContent()}
       </main>
 
       <nav style={s.tabBar}>
-        <TabBtn icon="🛒" label="List" active={tab === 'list'} onClick={() => handleTabChange('list')} />
+        <TabBtn icon={<ListIcon />} label="Shop" active={tab === 'list'} onClick={() => handleTabChange('list')} />
         <TabBtn icon={<BarcodeIcon />} label="Scan" active={tab === 'scan'} onClick={() => handleTabChange('scan')} accent />
-        <TabBtn icon="🟢" label="Instacart" active={tab === 'instacart'} onClick={() => handleTabChange('instacart')} />
-        <TabBtn icon="⚙️" label="Settings" active={tab === 'settings'} onClick={() => handleTabChange('settings')} />
+        <TabBtn icon={<SettingsIcon />} label="Settings" active={tab === 'settings'} onClick={() => handleTabChange('settings')} />
       </nav>
 
       {selectedProduct && (
@@ -232,10 +231,19 @@ function TabBtn({ icon, label, active, onClick, accent }) {
       {accent ? (
         <div style={{ ...s.scanFab, ...(active ? s.scanFabActive : {}) }}>{icon}</div>
       ) : (
-        <span style={s.tabIcon}>{icon}</span>
+        <span style={{ ...s.tabIconWrap, color: active ? '#1B5E20' : '#999' }}>{icon}</span>
       )}
       <span style={{ ...s.tabLabel, ...(active && !accent ? s.tabLabelActive : {}) }}>{label}</span>
     </button>
+  )
+}
+
+function ListIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>
+    </svg>
   )
 }
 
@@ -250,20 +258,29 @@ function BarcodeIcon() {
   )
 }
 
+function SettingsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  )
+}
+
 const s = {
-  app: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', background: '#F5F4F1', position: 'relative' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', background: '#fff', borderBottom: '1px solid #EBEBEB', position: 'sticky', top: 0, zIndex: 20 },
+  app: { minHeight: '100dvh', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', background: '#F7F6F3', position: 'relative' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', background: '#fff', borderBottom: '1px solid #EBEBEB', position: 'sticky', top: 0, zIndex: 20 },
   logo: { display: 'flex', alignItems: 'center', gap: 8 },
-  logoImg: { height: 32, width: 'auto', objectFit: 'contain' },
+  logoImg: { height: 30, width: 'auto', objectFit: 'contain', borderRadius: 8 },
+  logoText: { fontSize: 17, fontWeight: 800, color: '#1B5E20', letterSpacing: '-0.5px' },
   backPill: { fontSize: 13, fontWeight: 600, color: '#1B5E20', background: '#E8F5E9', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer' },
-  userEmail: { fontSize: 12, color: '#AAA', fontWeight: 500 },
+  avatarBtn: { width: 32, height: 32, borderRadius: '50%', background: '#1B5E20', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   main: { flex: 1, overflowY: 'auto' },
-  tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', background: '#fff', borderTop: '1px solid #EBEBEB', padding: '8px 0 max(8px, env(safe-area-inset-bottom))', zIndex: 30 },
-  tabBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 2px' },
+  tabBar: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', background: '#fff', borderTop: '1px solid #EBEBEB', padding: '6px 0 max(6px, env(safe-area-inset-bottom))', zIndex: 30 },
+  tabBtn: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 2px' },
   tabBtnActive: {},
-  tabIcon: { fontSize: 22 },
-  tabLabel: { fontSize: 11, fontWeight: 500, color: '#AAA', letterSpacing: '0.2px' },
+  tabIconWrap: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 28 },
+  tabLabel: { fontSize: 10, fontWeight: 600, color: '#BBB', letterSpacing: '0.2px' },
   tabLabelActive: { color: '#1B5E20', fontWeight: 700 },
-  scanFab: { width: 52, height: 52, background: '#1B5E20', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: 2, boxShadow: '0 4px 16px rgba(27,94,32,0.35)' },
+  scanFab: { width: 48, height: 48, background: '#1B5E20', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', marginBottom: 2, boxShadow: '0 4px 16px rgba(27,94,32,0.3)' },
   scanFabActive: { background: '#145214' },
 }
