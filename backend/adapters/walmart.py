@@ -158,6 +158,58 @@ def _parse_result(item: dict, store_branch_id: str = "walmart") -> dict:
     }
 
 
+# ── GroceryDB local ingredient lookup ─────────────────────────────────────────
+
+_grocerydb_df = None
+
+def _load_grocerydb():
+    """Load the GroceryDB Walmart parquet file once (lazy, ~3 MB in memory)."""
+    global _grocerydb_df
+    if _grocerydb_df is not None:
+        return _grocerydb_df
+    import os, pathlib
+    parquet_path = pathlib.Path(__file__).parent.parent / "data" / "grocerydb_walmart.parquet"
+    if not parquet_path.exists():
+        _grocerydb_df = False  # mark as unavailable
+        return False
+    try:
+        import pandas as pd
+        _grocerydb_df = pd.read_parquet(parquet_path)
+        logger.info(f"GroceryDB loaded: {len(_grocerydb_df)} Walmart products")
+    except Exception as e:
+        logger.warning(f"Failed to load GroceryDB: {e}")
+        _grocerydb_df = False
+    return _grocerydb_df
+
+
+def _grocerydb_lookup(product_name: str) -> str:
+    """
+    Fuzzy-match a product name against GroceryDB's 16k Walmart products.
+    Returns ingredient text if a close match is found.
+    """
+    gdb = _load_grocerydb()
+    if gdb is False or gdb is None:
+        return ""
+    name_lower = product_name.lower().strip()
+    if not name_lower:
+        return ""
+
+    # exact substring match first
+    matches = gdb[gdb["name_lower"].str.contains(name_lower[:40], na=False, regex=False)]
+    if matches.empty:
+        tokens = name_lower.split()[:4]
+        if len(tokens) >= 2:
+            pattern = ".*".join(re.escape(t) for t in tokens)
+            try:
+                matches = gdb[gdb["name_lower"].str.contains(pattern, na=False, regex=True)]
+            except Exception:
+                return ""
+    if matches.empty:
+        return ""
+
+    return str(matches.iloc[0]["Ingredients"]).strip()
+
+
 # ── BlueCart product detail for ingredients ───────────────────────────────────
 
 def _fetch_bluecart_ingredients(item_id: str, api_key: str) -> str:
@@ -212,6 +264,11 @@ def _enrich_with_details(results: list[dict], api_key: str) -> list[dict]:
         text = ingredient_map.get(idx, "")
         if text:
             results[idx]["ingredient_text"] = text
+
+    # fallback: try GroceryDB for anything still missing
+    for r in results:
+        if not r.get("ingredient_text"):
+            r["ingredient_text"] = _grocerydb_lookup(r.get("product_name", ""))
 
     return results
 
