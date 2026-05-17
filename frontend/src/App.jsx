@@ -73,7 +73,8 @@ export default function App() {
           lng: loc.lng,
           zip_code: loc.zip,
           avoid: avoidList,
-          top_n: 5,
+          top_n: 10,
+          radius_meters: 40000,
         })
         setShopResults(prev => prev.map((r, i) => i === idx ? { ...r, data, loading: false } : r))
       } catch (err) {

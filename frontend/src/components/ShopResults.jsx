@@ -161,11 +161,12 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
     const seen = new Set()
 
     const addPin = (s) => {
-      const key = `${s.store_name || s.name}|${s.lat}|${s.lng}`
+      const name = s.store_name || s.name || ''
+      const key = `${name}|${s.lat}|${s.lng}`
       if (seen.has(key) || !s.lat || !s.lng) return
       seen.add(key)
       pins.push({
-        name: s.store_name || s.name,
+        name,
         chain_id: s.chain_id,
         address: s.address,
         lat: s.lat,
@@ -174,11 +175,13 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
       })
     }
 
-    for (const { data } of shopResults) {
-      // stores with product results
-      for (const sr of (data?.results || [])) addPin(sr)
-      // extra nearby pins (stores in radius but not searched for products)
-      for (const pin of (data?.nearby_pins || [])) addPin(pin)
+    for (const entry of shopResults) {
+      const data = entry?.data
+      if (!data) continue
+      for (const sr of (data.results || [])) addPin(sr)
+      if (Array.isArray(data.nearby_pins)) {
+        for (const pin of data.nearby_pins) addPin(pin)
+      }
     }
 
     if (pins.length > 0) setNearbyStores(pins)
