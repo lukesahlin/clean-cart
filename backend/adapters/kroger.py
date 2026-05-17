@@ -13,14 +13,14 @@
 import os
 import base64
 import time
+import threading
 import httpx
 from datetime import datetime
 from adapters import AvailabilityResult
 
 # -- Tunable parameters -------------------------------------------------------
 
-CACHE_TTL_HOURS = 6          # how long we cache availability results
-REQUEST_TIMEOUT  = 10        # seconds per API call
+REQUEST_TIMEOUT  = 8         # seconds per API call
 
 # Kroger API base
 KROGER_BASE_URL  = "https://api.kroger.com/v1"
@@ -40,11 +40,22 @@ CHAIN_BANNER_MAP = {
     "smiths":     "SMITHS",
 }
 
+# Shared HTTP client — reuses TCP connections across all Kroger API calls
+_http_client = httpx.Client(
+    timeout=REQUEST_TIMEOUT,
+    http2=False,
+    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+)
+
 # Token cache — shared across all calls in this process
 _token_cache: dict = {"token": None, "expires_at": 0}
+_token_lock = threading.Lock()
 
 # Location ID cache — zip_code → list of (banner, locationId)
 _location_cache: dict = {}
+
+# Store discovery cache — avoids duplicate Locations API calls
+_store_discovery_cache: dict = {"key": None, "data": None, "ts": 0}
 
 # -- Auth ---------------------------------------------------------------------
 
@@ -52,32 +63,37 @@ def _get_token() -> str:
     """
     Returns a valid bearer token, refreshing if the cached one is within
     2 minutes of expiry. Uses client_credentials flow — no user login needed.
+    Thread-safe via lock to prevent duplicate token requests.
     """
     now = time.time()
     if _token_cache["token"] and now < _token_cache["expires_at"] - 120:
         return _token_cache["token"]
 
-    client_id     = os.getenv("KROGER_CLIENT_ID", "")
-    client_secret = os.getenv("KROGER_CLIENT_SECRET", "")
+    with _token_lock:
+        now = time.time()
+        if _token_cache["token"] and now < _token_cache["expires_at"] - 120:
+            return _token_cache["token"]
 
-    if not client_id or not client_secret:
-        raise RuntimeError(
-            "KROGER_CLIENT_ID and KROGER_CLIENT_SECRET must be set in .env. "
-            "Sign up at https://developer.kroger.com/"
-        )
+        client_id     = os.getenv("KROGER_CLIENT_ID", "")
+        client_secret = os.getenv("KROGER_CLIENT_SECRET", "")
 
-    # Kroger uses HTTP Basic auth: base64(client_id:client_secret)
-    creds   = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    headers = {"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"}
-    payload = {"grant_type": "client_credentials", "scope": "product.compact"}
+        if not client_id or not client_secret:
+            raise RuntimeError(
+                "KROGER_CLIENT_ID and KROGER_CLIENT_SECRET must be set in .env. "
+                "Sign up at https://developer.kroger.com/"
+            )
 
-    resp = httpx.post(TOKEN_URL, headers=headers, data=payload, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
+        creds   = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers = {"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"}
+        payload = {"grant_type": "client_credentials", "scope": "product.compact"}
 
-    _token_cache["token"]      = data["access_token"]
-    _token_cache["expires_at"] = now + data.get("expires_in", 1800)
-    return _token_cache["token"]
+        resp = _http_client.post(TOKEN_URL, headers=headers, data=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+        _token_cache["token"]      = data["access_token"]
+        _token_cache["expires_at"] = now + data.get("expires_in", 1800)
+        return _token_cache["token"]
 
 
 # -- Location lookup ----------------------------------------------------------
@@ -106,7 +122,7 @@ def _find_kroger_location_id(zip_code: str, chain_banner: str = "") -> str | Non
             "filter.limit": 10,
             **extra_params,
         }
-        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        resp = _http_client.get(LOCATIONS_URL, headers=headers, params=params)
         if resp.status_code != 200:
             return []
         return resp.json().get("data", [])
@@ -129,34 +145,6 @@ def _find_kroger_location_id(zip_code: str, chain_banner: str = "") -> str | Non
     return location_id
 
 
-def _find_kroger_location_with_info(zip_code: str, chain_banner: str = "") -> dict | None:
-    """
-    Like _find_kroger_location_id but returns the full location object
-    so callers can see the store name and chain.
-    """
-    token = _get_token()
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-
-    def _query(extra_params: dict) -> list:
-        params = {
-            "filter.zipCode.near": zip_code,
-            "filter.radiusInMiles": 25,
-            "filter.limit": 10,
-            **extra_params,
-        }
-        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
-        if resp.status_code != 200:
-            return []
-        return resp.json().get("data", [])
-
-    locations = []
-    if chain_banner:
-        locations = _query({"filter.chain": chain_banner})
-    if not locations:
-        locations = _query({})
-
-    return locations[0] if locations else None
-
 
 def find_nearby_kroger_stores(zip_code: str = "", limit: int = 5,
                               lat: float = 0, lng: float = 0) -> list[dict]:
@@ -164,7 +152,15 @@ def find_nearby_kroger_stores(zip_code: str = "", limit: int = 5,
     Returns nearby Kroger-family stores as dicts with name, address, lat, lng, chain.
     Uses the Kroger Locations API directly — doesn't need Google Places.
     Prefers lat/lng if provided, falls back to zip code.
+    Results are cached for 60 seconds to avoid duplicate calls between
+    /discover-stores and /shop.
     """
+    cache_key = f"{round(lat,3)}|{round(lng,3)}|{zip_code}"
+    now = time.time()
+    if (_store_discovery_cache["key"] == cache_key
+            and now - _store_discovery_cache["ts"] < 60):
+        return _store_discovery_cache["data"]
+
     try:
         token = _get_token()
     except Exception:
@@ -181,7 +177,7 @@ def find_nearby_kroger_stores(zip_code: str = "", limit: int = 5,
         return []
 
     try:
-        resp = httpx.get(LOCATIONS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        resp = _http_client.get(LOCATIONS_URL, headers=headers, params=params)
         if resp.status_code != 200:
             return []
     except Exception:
@@ -202,6 +198,10 @@ def find_nearby_kroger_stores(zip_code: str = "", limit: int = 5,
             "lat": geo.get("latitude", 0),
             "lng": geo.get("longitude", 0),
         })
+
+    _store_discovery_cache["key"] = cache_key
+    _store_discovery_cache["data"] = results
+    _store_discovery_cache["ts"] = time.time()
     return results
 
 
@@ -221,7 +221,7 @@ def _search_products(query: str, location_id: str) -> list[dict]:
         "filter.limit":       5,
     }
 
-    resp = httpx.get(PRODUCTS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+    resp = _http_client.get(PRODUCTS_URL, headers=headers, params=params)
     if resp.status_code != 200:
         return []
 
@@ -229,6 +229,23 @@ def _search_products(query: str, location_id: str) -> list[dict]:
 
 
 # -- Store product search (returns multiple results for shop endpoint) --------
+
+def _clean_product_name(raw_name: str, brand: str) -> str:
+    """Title-case the ALL-CAPS name Kroger returns and strip redundant brand prefix."""
+    if not raw_name:
+        return raw_name
+    name = raw_name.strip()
+    if name == name.upper() and len(name) > 3:
+        name = name.title()
+    if brand:
+        bl = brand.lower()
+        nl = name.lower()
+        if nl.startswith(bl):
+            name = name[len(brand):].lstrip(" -–—")
+            if not name:
+                name = raw_name.title() if raw_name == raw_name.upper() else raw_name
+    return name
+
 
 def _extract_kroger_ingredients(product: dict) -> str:
     """
@@ -264,7 +281,7 @@ def search_products_at_store(query: str, zip_code: str = "", banner: str = "",
             "filter.fulfillment": "csp",
             "filter.limit": limit,
         }
-        resp = httpx.get(PRODUCTS_URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        resp = _http_client.get(PRODUCTS_URL, headers=headers, params=params)
         if resp.status_code != 200:
             return []
 
@@ -282,7 +299,9 @@ def search_products_at_store(query: str, zip_code: str = "", banner: str = "",
             )
 
             upc = p.get("productId", "")
-            product_name = p.get("description", "") if isinstance(p.get("description"), str) else ""
+            raw_name = p.get("description", "") if isinstance(p.get("description"), str) else ""
+            brand = p.get("brand", "")
+            product_name = _clean_product_name(raw_name, brand)
 
             image_url = ""
             images = p.get("images", [])
@@ -305,7 +324,7 @@ def search_products_at_store(query: str, zip_code: str = "", banner: str = "",
             parsed.append({
                 "product_id": upc,
                 "product_name": product_name,
-                "brand": p.get("brand", ""),
+                "brand": brand,
                 "image_url": image_url,
                 "price": float(price) if price else None,
                 "price_str": f"${float(price):.2f}" if price else "",

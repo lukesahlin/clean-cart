@@ -142,7 +142,7 @@ function buildRoute(shopResults) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ShopResults({ shopResults, location, onLocationChange, onReSearch, onBack }) {
+export default function ShopResults({ shopResults, discoveredPins = [], location, onLocationChange, onReSearch, onBack }) {
   const [expandedItem, setExpandedItem] = useState(null)
   const [expandedProduct, setExpandedProduct] = useState(null)
   const [nearbyStores, setNearbyStores] = useState([])
@@ -155,7 +155,8 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
   const bestStore = route[0]
   const isLoading = shopResults.some(r => r.loading)
 
-  // Build map pins: stores with results + all nearby Kroger pins from API
+  // Build map pins: start with discovered pins (shown before product search),
+  // then merge in any additional pins from product search results
   useEffect(() => {
     const pins = []
     const seen = new Set()
@@ -175,6 +176,10 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
       })
     }
 
+    // pre-discovered store pins (available immediately)
+    for (const pin of discoveredPins) addPin(pin)
+
+    // merge pins from product search results
     for (const entry of shopResults) {
       const data = entry?.data
       if (!data) continue
@@ -185,7 +190,7 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
     }
 
     if (pins.length > 0) setNearbyStores(pins)
-  }, [shopResults])
+  }, [shopResults, discoveredPins])
 
   const handleMapSearch = useCallback(async (newRadiusMeters, overrideLoc = null) => {
     setRadiusMeters(newRadiusMeters)
@@ -203,15 +208,28 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
       {/* Compact top bar — slim for iPhone, tappable to expand map */}
       <div style={s.topBar}>
         <div style={s.topBarLeft}>
-          <span style={s.summaryBig}>{summary.cleanItems}</span>
-          <span style={s.summaryOf}>/{summary.totalItems}</span>
-          <span style={s.summaryLabel}> clean</span>
+          {isLoading ? (
+            <>
+              <div style={s.spinnerSmall} />
+              <span style={s.summaryLabel}>Searching stores…</span>
+            </>
+          ) : (
+            <>
+              <span style={s.summaryBig}>{summary.cleanItems}</span>
+              <span style={s.summaryOf}>/{summary.totalItems}</span>
+              <span style={s.summaryLabel}> clean</span>
+            </>
+          )}
         </div>
         <button style={s.mapToggle} onClick={() => setMapOpen(!mapOpen)}>
           {mapOpen ? '✕ Close map' : `📍 ${nearbyStores.length} stores`}
         </button>
-        {isLoading && <span style={s.loadingPill}>🔍</span>}
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+      `}</style>
 
       {/* Collapsible map + location + store list */}
       {mapOpen && location?.lat && (
@@ -241,6 +259,17 @@ export default function ShopResults({ shopResults, location, onLocationChange, o
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Full-page loading state while waiting for product results */}
+      {isLoading && !bestStore && (
+        <div style={s.loadingBanner}>
+          <div style={s.spinnerLarge} />
+          <div style={s.loadingTitle}>Searching nearby stores</div>
+          <div style={s.loadingSubtitle}>
+            Finding the cleanest products at {nearbyStores.length > 0 ? nearbyStores.length : ''} store{nearbyStores.length !== 1 ? 's' : ''}…
+          </div>
         </div>
       )}
 
@@ -623,7 +652,25 @@ const s = {
     border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
-  loadingPill: { fontSize: 14, flexShrink: 0 },
+  spinnerSmall: {
+    width: 18, height: 18,
+    border: '2.5px solid #E8F5E9', borderTop: '2.5px solid #1B5E20',
+    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+    flexShrink: 0,
+  },
+  spinnerLarge: {
+    width: 40, height: 40,
+    border: '4px solid #E8F5E9', borderTop: '4px solid #1B5E20',
+    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+    margin: '0 auto 16px',
+  },
+  loadingBanner: {
+    margin: '24px 16px 0', background: '#fff', borderRadius: 18,
+    padding: '40px 20px', textAlign: 'center',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+  },
+  loadingTitle: { fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 6 },
+  loadingSubtitle: { fontSize: 13, color: '#888', lineHeight: 1.5 },
   mapDropdown: { borderBottom: '1px solid #EBEBEB' },
 
   // Store chips row (visible when map is closed)

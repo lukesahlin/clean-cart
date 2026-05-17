@@ -10,6 +10,7 @@
 #   GET  /health             -- simple health check
 
 import os
+import math
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -328,12 +329,107 @@ async def test_kroger(zip_code: str = "", query: str = "tortilla chips"):
     return result
 
 
+class DiscoverStoresRequest(BaseModel):
+    lat: float
+    lng: float
+    zip_code: str = ""
+    radius_meters: int = 40000
+
+
+def _haversine(lat1, lng1, lat2, lng2):
+    R = 6371000
+    p = math.pi / 180
+    a = (0.5 - math.cos((lat2 - lat1) * p) / 2 +
+         math.cos(lat1 * p) * math.cos(lat2 * p) *
+         (1 - math.cos((lng2 - lng1) * p)) / 2)
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+async def _resolve_zip(lat: float, lng: float, zip_code: str) -> str:
+    """Derive zip code from coordinates if not provided."""
+    if zip_code:
+        return zip_code
+    try:
+        import httpx as _httpx
+        loop = asyncio.get_event_loop()
+        geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lng, "format": "json"},
+            headers={"User-Agent": "CleanCart/1.0"},
+            timeout=6,
+        ))
+        resolved = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
+        if resolved:
+            logger.info("  Resolved zip: %s", resolved)
+        return resolved
+    except Exception:
+        return ""
+
+
+@app.post("/discover-stores")
+async def discover_stores(request: DiscoverStoresRequest):
+    """
+    Fast store discovery — returns nearby Kroger-family store locations
+    and a Walmart pin without searching any products.
+    Call this first so the map populates immediately.
+    """
+    from adapters.kroger import find_nearby_kroger_stores
+
+    loop = asyncio.get_event_loop()
+
+    zip_code = await _resolve_zip(request.lat, request.lng, request.zip_code)
+
+    nearby_kroger = await loop.run_in_executor(
+        None, lambda: find_nearby_kroger_stores(
+            zip_code=zip_code, limit=15,
+            lat=request.lat, lng=request.lng
+        )
+    )
+
+    chain_id_map = {"FRED": "fred_meyer", "QFC": "qfc"}
+    pins = []
+    for kstore in nearby_kroger:
+        dist = _haversine(request.lat, request.lng, kstore["lat"], kstore["lng"])
+        if dist <= request.radius_meters:
+            pins.append({
+                "store_name": kstore["name"],
+                "chain_id": chain_id_map.get(kstore["chain"], "kroger"),
+                "address": kstore["address"],
+                "lat": kstore["lat"],
+                "lng": kstore["lng"],
+                "distance_meters": round(dist),
+                "location_id": kstore["location_id"],
+                "chain": kstore["chain"],
+            })
+
+    pins.sort(key=lambda p: p["distance_meters"])
+
+    # include a Walmart pin at the user's location
+    pins.append({
+        "store_name": "Walmart",
+        "chain_id": "walmart",
+        "address": f"Near {zip_code}",
+        "lat": request.lat,
+        "lng": request.lng,
+        "distance_meters": 0,
+        "location_id": "",
+        "chain": "WALMART",
+    })
+
+    logger.info(
+        "DISCOVER STORES  lat=%.4f  lng=%.4f  zip=%s  found=%d pins",
+        request.lat, request.lng, zip_code, len(pins),
+    )
+
+    return {"pins": pins, "zip_code": zip_code}
+
+
 @app.post("/shop")
 async def shop(request: ShopRequest):
     """
-    Store-first search: always queries Kroger + Walmart APIs directly,
-    regardless of Google Places results. Google Places is used only to
-    supplement map pins and distances.
+    Store-first search: queries Kroger + Walmart APIs directly.
+    Searches stores sequentially (closest first) and stops searching
+    additional Kroger stores once a clean product is found.
     """
     from filter_engine import analyze_off_product
     from scoring_engine import score_product
@@ -344,26 +440,12 @@ async def shop(request: ShopRequest):
     loop = asyncio.get_event_loop()
 
     logger.info(
-        "SHOP REQUEST  query=%r  lat=%.4f  lng=%.4f  radius=%dm  zip=%s  avoid=%s  items=%s",
+        "SHOP REQUEST  query=%r  lat=%.4f  lng=%.4f  radius=%dm  zip=%s  avoid=%s",
         request.query, request.lat, request.lng, request.radius_meters,
-        request.zip_code or "(auto)", request.avoid, getattr(request, "items", None),
+        request.zip_code or "(auto)", request.avoid,
     )
 
-    # derive zip from coordinates (Kroger API needs it)
-    zip_code = request.zip_code
-    if not zip_code:
-        try:
-            import httpx as _httpx
-            geo_resp = await loop.run_in_executor(None, lambda: _httpx.get(
-                "https://nominatim.openstreetmap.org/reverse",
-                params={"lat": request.lat, "lon": request.lng, "format": "json"},
-                headers={"User-Agent": "CleanCart/1.0"},
-                timeout=6,
-            ))
-            zip_code = geo_resp.json().get("address", {}).get("postcode", "").split("-")[0]
-            logger.info("  Resolved zip: %s", zip_code)
-        except Exception:
-            pass
+    zip_code = await _resolve_zip(request.lat, request.lng, request.zip_code)
 
     if not zip_code:
         return {"query": request.query, "stores_searched": 0,
@@ -411,25 +493,20 @@ async def shop(request: ShopRequest):
         ))
         return results[:request.top_n]
 
-    import math
-
-    def _haversine(lat1, lng1, lat2, lng2):
-        R = 6371000
-        p = math.pi / 180
-        a = (0.5 - math.cos((lat2 - lat1) * p) / 2 +
-             math.cos(lat1 * p) * math.cos(lat2 * p) *
-             (1 - math.cos((lng2 - lng1) * p)) / 2)
-        return R * 2 * math.asin(math.sqrt(a))
-
     store_results = []
+    all_kroger_pins = []
 
-    # --- Kroger: search closest per banner, show all locations as map pins ---
-    all_kroger_pins = []  # every store in radius for the map
+    CLEAN_BRANDS = [
+        "primal kitchen", "chosen foods", "tessemae", "sir kensington",
+        "simple mills", "siete", "kettle and fire", "hu kitchen",
+        "rxbar", "epic provisions", "jackson's", "boulder canyon",
+    ]
 
+    # --- Kroger: discover stores, search sequentially, stop on clean ---
     async def search_kroger_stores():
         nearby_kroger = await loop.run_in_executor(
             None, lambda: find_nearby_kroger_stores(
-                zip_code=zip_code, limit=10,
+                zip_code=zip_code, limit=15,
                 lat=request.lat, lng=request.lng
             )
         )
@@ -449,64 +526,61 @@ async def shop(request: ShopRequest):
                     "distance_meters": round(dist),
                 })
 
+        # sort all stores by distance (closest first)
+        in_radius.sort(key=lambda s: s["_dist"])
+
         logger.info(
             "  Kroger API: %d stores found, %d in radius — %s",
             len(nearby_kroger), len(in_radius),
             [f"{s['chain']} {s['name']} ({s['_dist']}m)" for s in in_radius],
         )
 
-        # pick the closest store per banner to actually search
-        closest_per_banner = {}
+        found_clean = False
+
         for kstore in in_radius:
-            banner = kstore["chain"]
-            if banner not in closest_per_banner or kstore["_dist"] < closest_per_banner[banner]["_dist"]:
-                closest_per_banner[banner] = kstore
+            if found_clean:
+                logger.info("  Skipping %s — already found clean match", kstore["name"])
+                break
 
-        CLEAN_BRANDS = [
-            "primal kitchen", "chosen foods", "tessemae", "sir kensington",
-            "simple mills", "siete", "kettle and fire", "hu kitchen",
-            "rxbar", "epic provisions", "jackson's", "boulder canyon",
-        ]
-
-        async def _search_one_kroger(kstore):
             loc_id = kstore["location_id"]
             banner = kstore["chain"]
             fetch_limit = max(request.top_n * 4, 20)
 
-            # main search
             products = await loop.run_in_executor(
-                None, lambda: kroger_search(
-                    request.query, zip_code, banner, fetch_limit, location_id=loc_id
+                None, lambda lid=loc_id: kroger_search(
+                    request.query, zip_code, banner, fetch_limit, location_id=lid
                 )
             )
             if not products:
                 products = []
 
-            # supplemental: search for clean brand + query if none appeared
+            # supplemental clean brand search — only for brands not already found
             found_brands = {p.get("brand", "").lower() for p in products}
-            missing_clean = [b for b in CLEAN_BRANDS if b not in found_brands
-                            and any(w in request.query.lower() for w in request.query.lower().split())]
-
-            async def _try_brand(brand):
-                return await loop.run_in_executor(
-                    None, lambda: kroger_search(
-                        f"{brand} {request.query}", zip_code, banner, 3, location_id=loc_id
-                    )
-                )
+            missing_clean = [b for b in CLEAN_BRANDS if b not in found_brands]
 
             if missing_clean:
                 brand_results = await asyncio.gather(
-                    *[_try_brand(b) for b in missing_clean[:4]]
+                    *[loop.run_in_executor(
+                        None, lambda b=brand, lid=loc_id: kroger_search(
+                            f"{b} {request.query}", zip_code, banner, 3, location_id=lid
+                        )
+                    ) for brand in missing_clean[:2]]
                 )
                 seen_ids = {p.get("product_id") for p in products}
+                query_words = set(request.query.lower().split())
                 for br in brand_results:
                     for p in (br or []):
-                        if p.get("product_id") not in seen_ids:
+                        if p.get("product_id") in seen_ids:
+                            continue
+                        # only include if the product name actually matches the query
+                        pname = (p.get("product_name") or p.get("description") or "").lower()
+                        if any(w in pname for w in query_words):
                             products.append(p)
                             seen_ids.add(p.get("product_id"))
 
             if not products:
-                return
+                continue
+
             scored = _filter_and_score(products)
             if scored:
                 store_results.append({
@@ -519,9 +593,17 @@ async def shop(request: ShopRequest):
                     "products": scored,
                 })
 
-        await asyncio.gather(*[_search_one_kroger(ks) for ks in closest_per_banner.values()])
+                has_clean = any(
+                    p.get("filter_result", {}).get("is_clean") and
+                    not p.get("filter_result", {}).get("ingredients_unknown") and
+                    (p.get("health_score", {}).get("score", 0) >= 70)
+                    for p in scored
+                )
+                if has_clean:
+                    found_clean = True
+                    logger.info("  Clean match found at %s — stopping Kroger search", kstore["name"])
 
-    # --- Walmart: no store location needed, BlueCart searches by zip ---
+    # --- Walmart: search in parallel with Kroger ---
     async def search_walmart_store():
         products = await loop.run_in_executor(
             None, search_walmart, request.query, zip_code, ""

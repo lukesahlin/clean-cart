@@ -74,6 +74,16 @@ export function requestGeolocation() {
   })
 }
 
+export async function discoverStores({ lat, lng, zip_code = '', radius_meters = 40000 }) {
+  const res = await fetch(`${BASE}/discover-stores`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat, lng, zip_code, radius_meters }),
+  })
+  if (!res.ok) return { pins: [], zip_code: '' }
+  return res.json()
+}
+
 export async function shopAtStores({ query, lat, lng, zip_code = '99201', radius_meters = 8000, avoid = [], top_n = 5 }) {
   const res = await fetch(`${BASE}/shop`, {
     method: 'POST',

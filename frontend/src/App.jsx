@@ -9,7 +9,7 @@ import AuthScreen from './components/AuthScreen.jsx'
 import InstacartSearch from './components/InstacartSearch.jsx'
 import { useLocalStorage } from './hooks/useLocalStorage.js'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { shopAtStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
+import { shopAtStores, discoverStores, requestGeolocation, reverseGeocode, geocodeLocation } from './api.js'
 
 
 export default function App() {
@@ -22,6 +22,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [shopResults, setShopResults] = useState(null)   // [{ item, data, loading, error }]
   const [currentItems, setCurrentItems] = useState([])
+  const [discoveredPins, setDiscoveredPins] = useState([])  // store pins from /discover-stores
 
   // location state — visible to the user, not just a ref
   const [location, setLocation] = useState(null)   // { lat, lng, zip, label }
@@ -48,14 +49,12 @@ export default function App() {
     setError(null)
     setCurrentItems(items)
 
-    // build initial loading state so the screen shows immediately
     const initial = items.map(item => ({ item, data: null, loading: true, error: null }))
     setShopResults(initial)
     setScreen('results')
 
     const loc = overrideLocation || await resolveLocation()
 
-    // if location couldn't be determined, stop and ask the user to set it
     if (!loc) {
       setIsLoading(false)
       setShopResults(null)
@@ -64,7 +63,17 @@ export default function App() {
       return
     }
 
-    // fire one /shop call per item concurrently, update state as each resolves
+    // Phase 1: discover stores so pins show on the map immediately
+    try {
+      const discovery = await discoverStores({
+        lat: loc.lat, lng: loc.lng, zip_code: loc.zip,
+      })
+      setDiscoveredPins(discovery.pins || [])
+    } catch {
+      // non-fatal — product search can proceed without pins
+    }
+
+    // Phase 2: search products per item concurrently
     await Promise.all(items.map(async (item, idx) => {
       try {
         const data = await shopAtStores({
@@ -122,7 +131,7 @@ export default function App() {
     if (tab === 'settings') return <Settings avoidList={avoidList} setAvoidList={setAvoidList} onClose={() => setTab('list')} onSignOut={signOut} />
     if (tab === 'list') {
       if (screen === 'results' && shopResults) {
-        return <ShopResults shopResults={shopResults} location={location} onLocationChange={handleLocationChange} onReSearch={(newLoc) => handleSearch(currentItems, newLoc)} onBack={() => { setScreen('list'); setShopResults(null) }} />
+        return <ShopResults shopResults={shopResults} discoveredPins={discoveredPins} location={location} onLocationChange={handleLocationChange} onReSearch={(newLoc) => handleSearch(currentItems, newLoc)} onBack={() => { setScreen('list'); setShopResults(null) }} />
       }
       return <GroceryList onSearch={handleSearch} loading={isLoading} error={error} location={location} onLocationChange={handleLocationChange} />
     }
