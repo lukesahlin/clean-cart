@@ -70,48 +70,72 @@ function buildSummary(shopResults) {
   return { cleanItems, totalItems: shopResults.length, storeCount: storeSet.size, totalProducts }
 }
 
-// Build a shopping route: for each store, which items can you get there
+// Build a shopping route: find the cleanest product for each item across
+// ALL stores, then group by store to show where to shop.
 function buildRoute(shopResults) {
-  const storeMap = {}
+  // Step 1: for each item, find the single best product across every store
+  const bestPerItem = {}  // item → { storeName, storeResult, product, score }
 
   for (const { item, data } of shopResults) {
     for (const storeResult of (data?.results || [])) {
-      const key = storeResult.store_name
-      if (!storeMap[key]) {
-        storeMap[key] = {
-          store_name: storeResult.store_name,
-          chain_id: storeResult.chain_id,
-          address: storeResult.address,
-          distance_meters: storeResult.distance_meters,
-          items: [],
-          totalPrice: 0,
-          hasPrices: false,
-        }
-      }
-      // best clean product for this item at this store
-      const cleanPicks = (storeResult.products || []).filter(p => p.filter_result?.is_clean !== false)
-      const best = cleanPicks[0] || storeResult.products?.[0]
-      if (best) {
-        storeMap[key].items.push({
-          item,
-          product_name: best.product_name,
-          brand: best.brand,
-          price: best.price,
-          price_str: best.price_str,
-          image_url: best.image_url,
-          is_clean: best.filter_result?.is_clean !== false,
-        })
-        if (best.price) {
-          storeMap[key].totalPrice += best.price
-          storeMap[key].hasPrices = true
+      for (const product of (storeResult.products || [])) {
+        const score = product.health_score?.score ?? -1
+        const prev = bestPerItem[item]
+        if (!prev || score > prev.score) {
+          bestPerItem[item] = {
+            storeName: storeResult.store_name,
+            chain_id: storeResult.chain_id,
+            address: storeResult.address,
+            distance_meters: storeResult.distance_meters,
+            product,
+            score,
+          }
         }
       }
     }
   }
 
-  // sort: most items first, then cheapest total
+  // Step 2: group winning products by the store they came from
+  const storeMap = {}
+  for (const [item, winner] of Object.entries(bestPerItem)) {
+    const key = winner.storeName
+    if (!storeMap[key]) {
+      storeMap[key] = {
+        store_name: winner.storeName,
+        chain_id: winner.chain_id,
+        address: winner.address,
+        distance_meters: winner.distance_meters,
+        items: [],
+        totalPrice: 0,
+        hasPrices: false,
+        cleanCount: 0,
+        totalScore: 0,
+      }
+    }
+    const p = winner.product
+    const clean = p.filter_result?.is_clean !== false
+    storeMap[key].items.push({
+      item,
+      product_name: p.product_name,
+      brand: p.brand,
+      price: p.price,
+      price_str: p.price_str,
+      image_url: p.image_url,
+      is_clean: clean,
+      health_score: winner.score,
+    })
+    if (clean) storeMap[key].cleanCount++
+    storeMap[key].totalScore += winner.score > 0 ? winner.score : 0
+    if (p.price) {
+      storeMap[key].totalPrice += p.price
+      storeMap[key].hasPrices = true
+    }
+  }
+
+  // sort: most winning items → highest total score → cheapest
   return Object.values(storeMap).sort((a, b) => {
     if (b.items.length !== a.items.length) return b.items.length - a.items.length
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore
     return a.totalPrice - b.totalPrice
   })
 }
@@ -417,8 +441,11 @@ function ProductRow({ product, isExpanded, onToggle }) {
 
           {/* Store chip */}
           <div style={s.storeChip}>
-            <span>{storeEmoji(store?.chain_id)}</span>
-            <span>{store?.store_name?.split(' ').slice(0, 2).join(' ')}</span>
+            {storeLogo(store?.chain_id)
+              ? <img src={storeLogo(store?.chain_id)} alt="" style={{ width: 14, height: 14, objectFit: 'contain' }} />
+              : <span>{storeEmoji(store?.chain_id)}</span>
+            }
+            <span>{store?.store_name?.split('—')[0]?.trim()?.split(' ').slice(0, 2).join(' ')}</span>
             {store?.distance_meters && <span style={s.distText}>{distLabel(store.distance_meters)}</span>}
           </div>
 

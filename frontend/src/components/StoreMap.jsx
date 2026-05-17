@@ -35,6 +35,24 @@ const STORE_LOGOS = {
 }
 
 function makeStoreIcon(chainId) {
+  const logo = STORE_LOGOS[chainId]
+  if (logo) {
+    return L.divIcon({
+      html: `<div style="
+        width:34px;height:34px;
+        border-radius:10px;
+        background:#fff;
+        display:flex;align-items:center;justify-content:center;
+        border:2px solid ${CHAIN_COLOR[chainId] || '#ddd'};
+        box-shadow:0 2px 8px rgba(0,0,0,0.25);
+        overflow:hidden;
+      "><img src="${logo}" style="width:24px;height:24px;object-fit:contain;" /></div>`,
+      className: '',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -19],
+    })
+  }
   const color = CHAIN_COLOR[chainId] || '#444'
   const label = CHAIN_LABEL[chainId] || '•'
   return L.divIcon({
@@ -274,7 +292,12 @@ export default function StoreMap({
           {stores.map((store, i) => (
             <Marker key={store.place_id || `${store.name}-${i}`} position={[store.lat, store.lng]} icon={makeStoreIcon(store.chain_id)}>
               <Popup>
-                <strong style={{ fontSize: 13 }}>{store.name || store.store_name}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {STORE_LOGOS[store.chain_id] && (
+                    <img src={STORE_LOGOS[store.chain_id]} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                  )}
+                  <strong style={{ fontSize: 13 }}>{store.name || store.store_name}</strong>
+                </div>
                 <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>{store.address}</div>
                 {store.distance_meters != null && (
                   <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
