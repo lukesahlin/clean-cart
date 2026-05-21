@@ -2,6 +2,11 @@
 
 A web app that takes your grocery list, filters out brands with seed oils and harmful additives, recommends cleaner alternatives, and shows which nearby stores carry them.
 
+## Demo Site
+
+[cleanCart](https://clean-cart-pink.vercel.app/)
+
+
 ## Quick start
 
 ### 1. Backend
